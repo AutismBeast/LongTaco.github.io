@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Chrono-Kingdom: The Unwound Pendulum</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0816">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root { --bg:#0b0816; --ui:#f5d27a; --ui2:#2b2140; color-scheme:dark; }
   html, body { margin:0; padding:0; height:100%; background:var(--bg); overflow:hidden;
@@ -3545,6 +3549,7 @@ class Game {
 }
 
 window.addEventListener('load', () => { window.__game = new Game(); });
+if ('serviceWorker' in navigator && location.protocol === 'https:' && /chrono-kingdom/.test(location.pathname)) { try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} }
 </script>
 </body>
 </html>
