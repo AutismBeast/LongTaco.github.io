@@ -470,8 +470,15 @@ const Art = {
     switch (key) {
       case 'G': case 'Gt':
         r(0,0,16,16,P.ground);
+        r(0,11,16,1,'rgba(0,0,0,0.1)'); r(0,12,16,4,'rgba(0,0,0,0.06)');
         for (let i = 0; i < 6; i++) { const hx = Math.floor(Util.hash(i * 7 + 3) * 14), hy = Math.floor(Util.hash(i * 13 + 1) * 14); r(hx, hy, 2, 2, P.groundDark); }
-        if (key === 'Gt') { r(0,0,16,5,P.groundTop); r(0,5,16,1,P.groundTopDark); r(2,5,2,1,P.groundTop); r(9,5,3,1,P.groundTop); r(0,0,16,1,'rgba(255,255,255,0.25)'); }
+        for (let i = 0; i < 3; i++) { const hx = Math.floor(Util.hash(i * 5 + 9) * 14), hy = Math.floor(Util.hash(i * 3 + 7) * 12) + 2; r(hx, hy, 1, 1, 'rgba(255,255,255,0.22)'); r(hx + 1, hy + 1, 1, 1, 'rgba(0,0,0,0.2)'); }
+        if (key === 'Gt') {
+          r(0,0,16,5,P.groundTop); r(0,5,16,1,P.groundTopDark);
+          for (let i = 0; i < 16; i += 2) { const d = 1 + Math.floor(Util.hash(i * 2.7) * 3); r(i, 5, 2, d, P.groundTop); r(i, 5 + d, 2, 1, P.groundTopDark); }
+          r(0,0,16,1,'rgba(255,255,255,0.35)'); r(0,1,16,1,'rgba(255,255,255,0.12)');
+          for (let i = 1; i < 16; i += 5) r(i, 2, 1, 1, 'rgba(255,255,255,0.3)');
+        }
         break;
       case 'B':
         r(0,0,16,16,P.brick); r(0,0,16,1,P.mortar); r(0,8,16,1,P.mortar); r(0,0,1,8,P.mortar); r(8,8,1,8,P.mortar);
@@ -511,7 +518,15 @@ const Art = {
     const th = room.palette;
     const P = PAL[th] || PAL.meadow, r = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(sx + a, sy + b, w, h); };
     switch (t) {
-      case T.GROUND: { const up = ty === 0 ? T.GROUND : room.get(tx, ty - 1); ctx.drawImage(this.tileCanvas(th, (up === T.GROUND) ? 'G' : 'Gt'), sx, sy); break; }
+      case T.GROUND: {
+        const up = ty === 0 ? T.GROUND : room.get(tx, ty - 1), top = up !== T.GROUND;
+        ctx.drawImage(this.tileCanvas(th, top ? 'Gt' : 'G'), sx, sy);
+        const L = tx > 0 ? room.get(tx - 1, ty) : T.GROUND, R = tx < room.w - 1 ? room.get(tx + 1, ty) : T.GROUND, D = ty < ROWS - 1 ? room.get(tx, ty + 1) : T.GROUND;
+        if (L !== T.GROUND) { r(0, top ? 6 : 0, 2, 16 - (top ? 6 : 0), 'rgba(0,0,0,0.2)'); if (top) { r(-1, 1, 1, 4, P.groundTop); r(-1, 5, 1, 1, P.groundTopDark); } }
+        if (R !== T.GROUND) { r(14, top ? 6 : 0, 2, 16 - (top ? 6 : 0), 'rgba(0,0,0,0.28)'); if (top) { r(16, 1, 1, 4, P.groundTop); r(16, 5, 1, 1, P.groundTopDark); } }
+        if (D !== T.GROUND && D !== T.STEM) { r(0, 13, 16, 3, 'rgba(0,0,0,0.3)'); const k = (tx * 7) % 5; r(3 + k, 16, 1, 2 + (tx % 3), P.groundDark); r(10 - k, 16, 1, 1 + ((tx + 1) % 3), P.groundDark); }
+        break;
+      }
       case T.BRICK: ctx.drawImage(this.tileCanvas(th, 'B'), sx, sy); break;
       case T.USED: ctx.drawImage(this.tileCanvas(th, 'U'), sx, sy); break;
       case T.STONE: ctx.drawImage(this.tileCanvas(th, 'S'), sx, sy); break;
@@ -671,7 +686,7 @@ const Art = {
       g.addColorStop(0, '#4fb4f8'); g.addColorStop(1, '#c6f0ff'); ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
       ctx.fillStyle = 'rgba(255,250,200,0.9)'; ctx.beginPath(); ctx.arc(430, 46, 20, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(255,250,200,0.25)'; ctx.beginPath(); ctx.arc(430, 46, 30 + Math.sin(t * 2) * 2, 0, Math.PI * 2); ctx.fill();
-      this.layer(camX, 0.08, 220, i => { const x = i, h = 70 + Util.hash(i) * 70;
+      this.layer(camX, 0.08, 220, (x, i) => { const h = 70 + Util.hash(i) * 70;
         ctx.fillStyle = '#8eb6dc'; ctx.beginPath(); ctx.moveTo(x - 20, 230); ctx.lineTo(x + 90, 230 - h); ctx.lineTo(x + 200, 230); ctx.fill();
         ctx.fillStyle = '#eef6ff'; ctx.beginPath(); ctx.moveTo(x + 90, 230 - h); ctx.lineTo(x + 72, 230 - h + 20); ctx.lineTo(x + 108, 230 - h + 20); ctx.fill(); });
       this.layer(camX, 0.16, 300, (x, i) => { this.gear(ctx, x + 150, 180 + Util.hash(i + 3) * 30, 40 + Util.hash(i) * 20, 10, t * 0.3 * (i % 2 ? 1 : -1), 'rgba(110,150,190,0.45)', 'rgba(160,200,235,0.6)'); });
@@ -1353,7 +1368,7 @@ class Player {
   reset() {
     Object.assign(this, { x:0, y:0, w:12, h:14, vx:0, vy:0, facing:1, power:0, grounded:false, coyote:0, jumpBuf:0, inv:0, star:0,
       crouch:false, pound:0, poundT:0, airJumps:0, dashT:0, dashUsed:false, grav:1, anim:0, walkT:0, dead:false, deadT:0, riding:null,
-      fireCD:0, state:'stand', skid:false, conv:0, hearts:1, mode:null, modeT:0, combo:0, gliding:false, history:[], sx:1, sy:1, trail:[], trailT:0 });
+      fireCD:0, state:'stand', skid:false, conv:0, hearts:1, mode:null, modeT:0, combo:0, gliding:false, history:[], sx:1, sy:1, trail:[], trailT:0, hidden:false });
   }
   get big() { return this.power > 0; }
   get cx() { return this.x + this.w / 2; }
@@ -2958,7 +2973,7 @@ class Game {
       if (it.type === 'medal') { it.ghost = !!saved[it.idx]; if (this.sessionMedals[it.idx]) it.alive = false; }
       if (it.type === 'checkpoint' && this.checkpoint && Math.abs(it.x + 4 - this.checkpoint.x) < 2) it.on = true;
     }
-    for (const r of Object.values(L.rooms)) r.items = r.items.filter(i => i.alive);
+    for (const r of Object.values(L.rooms)) { r.items = r.items.filter(i => i.alive); this.buildDecor(r); }
     const p = this.player; p.reset(); p.hearts = this.maxHearts(); p.setPower(this.startPower());
     if (this.checkpoint) p.place(this.checkpoint.x, this.checkpoint.y); else p.place(L.start.x, L.start.y);
     const maxX = Math.max(0, this.room.w * 16 - VW);
@@ -3025,9 +3040,104 @@ class Game {
     // darkness
     const dz = room.dark || !!room.zoneAt(p.cx, 'dark') ? 1 : 0;
     this.darkness += (dz - this.darkness) * Math.min(1, 3 * dt);
+    this.updateDecor(dt);
     this.particles.update(dt);
     this.updateCamera(dt);
     if (p.dead) { this.deathT += dt; if (this.deathT > 2.6 && !this.deathHandled) { this.deathHandled = true; this.afterDeath(); } }
+  }
+  buildDecor(room) {
+    const d = [], pal = room.palette;
+    const SETS = { meadow:[['grass',0.55],['flower',0.8],['bush',0.93],['pebble',1]], under:[['grass',0.5],['pebble',0.8],['shroom',1]],
+      cave:[['grass',0.4],['shroom',0.72],['crystal',0.88],['pebble',1]], foundry:[['weed',0.35],['scrap',0.65],['vent',0.78],['pebble',1]],
+      citadel:[['grass',0.35],['starflower',0.65],['crystal',0.85],['pebble',1]] };
+    const set = SETS[pal] || SETS.meadow;
+    for (let tx = 0; tx < room.w; tx++) for (let ty = 1; ty < ROWS; ty++) {
+      const t = room.get(tx, ty); if (t !== T.GROUND && t !== T.CASTLE) continue;
+      if (room.get(tx, ty - 1) !== T.EMPTY) continue;
+      const h = Util.hash(tx * 13.7 + ty * 3.1 + room.w * 0.37);
+      const n = t === T.CASTLE ? (h < 0.2 ? 1 : 0) : (h < 0.82 ? (h < 0.35 ? 2 : 1) : 0);
+      for (let k = 0; k < n; k++) {
+        const hh = Util.hash(tx * 7.3 + k * 11.1 + ty * 1.7), h2 = Util.hash(tx * 3.9 + k * 5.3 + 0.5);
+        let type = 'grass'; for (const [ty2, p] of set) if (h2 < p) { type = ty2; break; }
+        if (t === T.CASTLE) type = h2 < 0.5 ? 'pebble' : 'weed';
+        d.push({ x:tx * 16 + 2 + hh * 12, y:ty * 16, tx, ty, type, a:0, va:0, s:0.75 + hh * 0.55, seed:hh, hue:Math.floor(h2 * 997) % 5 });
+      }
+    }
+    room.decor = d;
+  }
+  updateDecor(dt) {
+    const room = this.room, p = this.player, x0 = this.cam.x - 24, x1 = this.cam.x + VW + 24, t = this.time;
+    if (!room.decor) return;
+    const movers = [p];
+    for (const e of room.enemies) if (e.alive && e.groundBound && e.x > x0 && e.x < x1) movers.push(e);
+    for (const o of this.online.partners()) movers.push({ x:o.x, y:o.y, w:o.w, h:o.h, vx:0, grav:1 });
+    for (const d of room.decor) {
+      if (d.x < x0 || d.x > x1) continue;
+      if (d.type === 'vent' && Math.random() < 0.015) this.particles.add({ x:d.x, y:d.y - 6, vx:(Math.random() - 0.5) * 10, vy:-30 - Math.random() * 20, life:1, color:'rgba(220,220,230,0.4)', size:5, type:'dust', drag:0.5 });
+      if (d.type === 'pebble' || d.type === 'scrap' || d.type === 'crystal' || d.type === 'vent') continue;
+      let target = Math.sin(t * 1.7 + d.x * 0.045) * 0.13 + Math.sin(t * 3.1 + d.x * 0.11) * 0.04;
+      for (const m of movers) {
+        if (m.dead || (m.grav || 1) < 0) continue;
+        const dx = d.x - (m.x + m.w / 2), feet = m.y + m.h;
+        if (Math.abs(dx) < 12 && feet > d.y - 20 && feet < d.y + 3) {
+          const k = 1 - Math.abs(dx) / 12; target += (dx >= 0 ? 1 : -1) * k * 1.1 + (m.vx || 0) * 0.003 * k;
+          if (m === p && Math.abs(p.vx) > 70 && Math.random() < 0.05 * k && (d.type === 'grass' || d.type === 'flower' || d.type === 'starflower'))
+            this.particles.add({ x:d.x, y:d.y - 5, vx:p.vx * 0.3 + (Math.random() - 0.5) * 30, vy:-60 - Math.random() * 40, grav:180, life:0.9, color:d.type === 'grass' ? PAL[room.palette].groundTop : ['#ff7aa8','#ffd34d','#9ad8ff','#ffffff','#c08aff'][d.hue], size:2, drag:1 });
+        }
+      }
+      d.va += ((target - d.a) * 150 - d.va * 7) * dt; d.a = Util.clamp(d.a + d.va * dt, -1.35, 1.35);
+    }
+  }
+  drawDecor(ctx, cx, cy, back) {
+    const room = this.room; if (!room.decor) return;
+    const P = PAL[room.palette] || PAL.meadow, t = this.time;
+    const FL = ['#ff7aa8','#ffd34d','#9ad8ff','#ffffff','#c08aff'];
+    for (const d of room.decor) {
+      const x = d.x - cx, y = d.y - cy + 1;
+      if (x < -20 || x > VW + 20 || (d.type === 'bush') !== back) continue;
+      if (room.get(d.tx, d.ty) === T.EMPTY) continue;
+      const blade = (bx, len, ang, w, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(bx - w, y); ctx.lineTo(bx + w, y); ctx.lineTo(bx + Math.sin(ang) * len, y - Math.cos(ang) * len); ctx.closePath(); ctx.fill(); };
+      switch (d.type) {
+        case 'grass': case 'weed': {
+          const c1 = d.type === 'weed' ? '#7a3a24' : P.groundTop, c2 = d.type === 'weed' ? '#4a2014' : P.groundTopDark, c3 = d.type === 'weed' ? '#a85a34' : 'rgba(255,255,255,0.35)';
+          for (let i = 0; i < 4; i++) { const len = (5 + ((d.seed * 10 * (i + 1)) % 4)) * d.s, ang = d.a * (0.75 + i * 0.12) + (i - 1.5) * 0.22; blade(x + (i - 1.5) * 1.6, len, ang, 1.1, i % 2 ? c1 : c2); }
+          blade(x + 0.5, 7 * d.s, d.a * 1.05, 0.6, c3); break;
+        }
+        case 'flower': case 'starflower': {
+          const len = 8 * d.s, tx2 = x + Math.sin(d.a) * len, ty2 = y - Math.cos(d.a) * len;
+          ctx.strokeStyle = room.palette === 'citadel' ? '#b8963a' : '#3c8f22'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + Math.sin(d.a) * len * 0.3, y - len * 0.6, tx2, ty2); ctx.stroke();
+          blade(x - 1, 4, d.a * 0.6 - 0.7, 1, '#3c8f22'); blade(x + 1, 4, d.a * 0.6 + 0.7, 1, '#58b848');
+          if (d.type === 'starflower') Art.star(ctx, tx2, ty2, 3.2, 1.4, FL[d.hue], d.a + t * 0.5);
+          else { ctx.fillStyle = FL[d.hue]; for (let k = 0; k < 5; k++) { const a = k * 1.2566 + d.a; ctx.fillRect(tx2 + Math.cos(a) * 1.8 - 1, ty2 + Math.sin(a) * 1.8 - 1, 2, 2); } ctx.fillStyle = '#ffe060'; ctx.fillRect(tx2 - 0.5, ty2 - 0.5, 1.5, 1.5); }
+          break;
+        }
+        case 'shroom': {
+          ctx.save(); ctx.translate(x, y); ctx.rotate(d.a * 0.35);
+          const h = 5 * d.s, pulse = 0.6 + 0.4 * Math.sin(t * 2 + d.seed * 9);
+          ctx.fillStyle = '#e8dcc0'; ctx.fillRect(-1, -h, 2, h);
+          ctx.fillStyle = room.palette === 'cave' ? `rgba(60,${200 + pulse * 55 | 0},210,1)` : '#e04848'; ctx.beginPath(); ctx.ellipse(0, -h, 3.5 * d.s, 2.4 * d.s, 0, Math.PI, 0); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(-1.5, -h - 1.5, 1, 1); ctx.restore(); break;
+        }
+        case 'crystal': {
+          const h = 7 * d.s, col = room.palette === 'cave' ? '#7fffd8' : '#c8b0ff', sh = 0.5 + 0.5 * Math.sin(t * 2.5 + d.seed * 20);
+          ctx.fillStyle = col; ctx.globalAlpha = 0.75 + sh * 0.25;
+          ctx.beginPath(); ctx.moveTo(x - 2.5, y); ctx.lineTo(x - 1, y - h); ctx.lineTo(x + 1, y - h * 0.8); ctx.lineTo(x + 2.5, y); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(x + 1, y); ctx.lineTo(x + 3.5, y - h * 0.55); ctx.lineTo(x + 4.5, y); ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, y - h * 0.8, 1, h * 0.5); ctx.globalAlpha = 1; break;
+        }
+        case 'bush': {
+          const sw = d.a * 1.5, s = d.s;
+          ctx.fillStyle = P.groundTopDark; ctx.beginPath(); ctx.arc(x - 5 * s, y - 3 * s, 5 * s, 0, 7); ctx.arc(x + 5 * s + sw * 0.5, y - 3 * s, 5 * s, 0, 7); ctx.arc(x + sw, y - 6 * s, 6 * s, 0, 7); ctx.fill();
+          ctx.fillStyle = P.groundTop; ctx.beginPath(); ctx.arc(x - 1 + sw, y - 7 * s, 4 * s, 0, 7); ctx.arc(x - 6 * s, y - 4 * s, 3 * s, 0, 7); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(x - 2 + sw, y - 10 * s, 2, 1);
+          if (d.hue < 2) { ctx.fillStyle = '#ff5a6a'; ctx.fillRect(x + 3 * s, y - 6 * s, 2, 2); ctx.fillRect(x - 4 * s, y - 4 * s, 2, 2); }
+          break;
+        }
+        case 'pebble': ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 3, y - 1, 6, 1); ctx.fillStyle = '#9a9aaa'; ctx.fillRect(x - 2, y - 3, 4, 2); ctx.fillStyle = '#c8c8d8'; ctx.fillRect(x - 2, y - 3, 2, 1); break;
+        case 'scrap': ctx.fillStyle = '#5a504a'; ctx.fillRect(x - 3, y - 2, 6, 2); Art.gear(ctx, x + 1, y - 3, 2.5, 6, d.seed * 6, '#8a7a6a'); ctx.fillStyle = '#c9a050'; ctx.fillRect(x - 3, y - 3, 2, 1); break;
+        case 'vent': ctx.fillStyle = '#4a3a36'; ctx.fillRect(x - 3, y - 5, 6, 5); ctx.fillStyle = '#6a5a54'; ctx.fillRect(x - 4, y - 6, 8, 2); ctx.fillStyle = '#1a0a06'; ctx.fillRect(x - 2, y - 6, 4, 1); break;
+      }
+    }
   }
   updateCamera(dt) {
     const p = this.player, room = this.room, maxX = Math.max(0, room.w * 16 - VW);
@@ -3286,6 +3396,7 @@ class Game {
     const cx = Math.round(this.cam.x + sx), cy = Math.round(sy);
     Art.bg(ctx, room.bg, cx, t, room.castle);
     const inPipe = p.mode && (p.mode.type === 'pipeDown' || p.mode.type === 'pipeUp');
+    this.drawDecor(ctx, cx, cy, true);
     if (inPipe) p.draw(ctx, cx, cy);
     // tiles
     const c0 = Math.max(0, Math.floor(cx / 16)), c1 = Math.min(room.w - 1, c0 + VW / 16 + 1), glowT = [];
@@ -3299,6 +3410,7 @@ class Game {
       const a = room.heat ? 0.55 + 0.15 * Math.sin(t * 20) : (Math.floor(t * 8) % 2 ? 0.45 : 0.1);
       ctx.fillStyle = room.heat ? `rgba(255,60,20,${a})` : `rgba(255,170,40,${a})`; ctx.fillRect(room.heatX0 - cx, GY * 16 - cy - 2, room.heatX1 - room.heatX0, 10);
     }
+    this.drawDecor(ctx, cx, cy, false);
     for (const pl of room.platforms) if (pl.x + pl.w > cx && pl.x < cx + VW) pl.draw(ctx, cx, cy, t);
     for (const it of room.items) if (it.x + it.w > cx - 40 && it.x < cx + VW + 40) it.draw(ctx, cx, cy, t);
     for (const h of room.hazards) h.draw(ctx, cx, cy, t);
@@ -3380,6 +3492,7 @@ class Game {
     const IC = { coin:['rgba(255,200,60,0.38)', 13], coinpop:['rgba(255,210,80,0.5)', 16], medal:['rgba(255,220,90,0.6)', 30], heart:['rgba(255,90,140,0.5)', 24], spark:['rgba(255,150,40,0.6)', 28],
       feather:['rgba(160,255,240,0.5)', 24], star:['rgba(255,255,160,0.7)', 32], life:['rgba(90,255,130,0.45)', 24], gear:['rgba(255,220,100,0.75)', 48], checkpoint:['rgba(90,255,140,0.3)', 22] };
     for (const it of room.items) { const c = IC[it.type]; if (c && !(it.type === 'checkpoint' && !it.on)) G(c[0], it.x + it.w / 2 - cx, it.y + Math.min(it.h, 14) / 2 - cy, c[1]); }
+    if (room.decor) for (const d of room.decor) { if (d.x < cx - 20 || d.x > cx + VW + 20) continue; if (d.type === 'crystal') G(room.palette === 'cave' ? 'rgba(120,255,220,0.35)' : 'rgba(200,170,255,0.35)', d.x - cx, d.y - 5 - cy, 14); else if (d.type === 'shroom' && room.palette === 'cave') G('rgba(80,255,220,0.3)', d.x - cx, d.y - 6 - cy, 12); }
     for (const f of this.fireballs) G('rgba(255,140,40,0.6)', f.x + 4 - cx, f.y + 4 - cy, 26);
     for (const s of room.shots) { const col = { bolt:'rgba(120,210,255,0.5)', spore:'rgba(230,120,230,0.45)', orb:'rgba(190,120,255,0.55)', bullet:'rgba(190,120,255,0.5)', wave:'rgba(255,140,40,0.5)', meteor:'rgba(255,150,60,0.5)' }[s.type]; if (col && !(s.warn > 0)) G(col, s.x + s.w / 2 - cx, s.y + s.h / 2 - cy, 22); }
     for (const e of room.enemies) { if (e instanceof LavaBubble && e.y < 16 * 16) G('rgba(255,120,40,0.55)', e.cx - cx, e.y + 6 - cy, 30); else if (e instanceof PhantomWisp) G('rgba(170,200,255,0.3)', e.cx - cx, e.y + 7 - cy, 24); }
