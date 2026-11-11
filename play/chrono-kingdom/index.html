@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Chrono-Kingdom: The Unwound Pendulum</title>
 <style>
-  :root { --bg:#0b0816; --ui:#f5d27a; --ui2:#2b2140; }
+  :root { --bg:#0b0816; --ui:#f5d27a; --ui2:#2b2140; color-scheme:dark; }
   html, body { margin:0; padding:0; height:100%; background:var(--bg); overflow:hidden;
     touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
-  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:var(--bg); box-sizing:border-box;
+    padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px); }
   #game { position:relative; box-shadow:0 0 40px rgba(0,0,0,.6); background:#000; }
   #game canvas { display:block; width:100%; height:100%; image-rendering:pixelated; image-rendering:crisp-edges; outline:none; }
   .hudBtn { position:absolute; z-index:5; border:2px solid var(--ui); background:rgba(43,33,64,.78); color:var(--ui);
@@ -2648,7 +2649,9 @@ class Game {
   }
   toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(this._toast); this._toast = setTimeout(() => t.style.display = 'none', 2600); }
   resize() {
-    const W = window.innerWidth, H = window.innerHeight, s = Math.min(W / VW, H / VH), el = document.getElementById('game');
+    const wrap = document.getElementById('wrap'), cs = getComputedStyle(wrap);
+    const W = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), H = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const s = Math.max(0.1, Math.min(W / VW, H / VH)), el = document.getElementById('game');
     el.style.width = Math.floor(VW * s) + 'px'; el.style.height = Math.floor(VH * s) + 'px';
   }
   /* ---------- save ---------- */
