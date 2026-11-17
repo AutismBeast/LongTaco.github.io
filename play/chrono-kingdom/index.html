@@ -5933,10 +5933,10 @@ class Game {
   }
   updateMapLife(dt) {
     const mp = this.mapPos; if (!mp || typeof OW === 'undefined' || !OW || !OW.props || !this.mapCam) return;
-    const L = this.mapLife || (this.mapLife = { birds:[], bt:2.5, blooms:[], flies:[], acc:0 });
-    if (L.ow !== OW) { L.ow = OW; L.birds = []; L.blooms = []; L.flies = []; L.lx = mp.x; L.ly = mp.y; L.near = null; }
+    const L = this.mapLife || (this.mapLife = { birds:[], bt:2.5, blooms:[], flies:[], acc:0, dols:[], wx:[] });
+    if (L.ow !== OW) { L.ow = OW; L.birds = []; L.blooms = []; L.flies = []; L.dols = []; L.wx = []; L.lx = mp.x; L.ly = mp.y; L.near = null; }
     const t = this.time, mdx = mp.x - L.lx, mdy = mp.y - L.ly, md = Math.hypot(mdx, mdy); L.lx = mp.x; L.ly = mp.y;
-    const moving = md > 0.2 && md < 40;
+    const moving = md > 0.2 && md < 40; this.updateMapLife2(L, dt, mp, moving, mdx);
     if (moving) for (const p of OW.props) { const dx = p.x - mp.x, dy = p.y - mp.y; if (dx * dx + dy * dy < 420 && (!p.wig || t - p.wig > 1.3)) { p.wig = t; const f = TOY_KINDS[p.b], kind = f ? f(p.v)[0] : 'tree';
       if (kind === 'tree' || kind === 'palm' || kind === 'bush' || kind === 'spooky') this.particles.burst(p.x, p.y - 16 * p.s, 5, ['#5ad04a', '#8ae060', '#3cae46', '#c8f070'], 45, { size:2, grav:90, life:0.8, drag:1.5 });
       else this.particles.sparkle(p.x, p.y - 8, '#fff7a8', 2); } }
@@ -5995,6 +5995,7 @@ class Game {
     for (let i = 0; i < 26; i++) { const x = ((Util.hash(i * 3.3) * W + t * W * 0.012 * (0.5 + Util.hash(i))) % W), y = H - ((Util.hash(i * 7.1) * H + t * H * 0.03 * (0.4 + Util.hash(i * 2))) % H), r = (0.8 + Util.hash(i * 5) * 1.6) * (W / VW), a = 0.18 + 0.18 * Math.sin(t * 2 + i);
       ctx.fillStyle = night ? `rgba(170,230,255,${a})` : `rgba(255,250,210,${a})`; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
     ctx.globalCompositeOperation = 'source-over';
+    this.drawWeather(ctx, W / VW);
     const vg = ctx.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.42, W / 2, H * 0.55, Math.max(W, H) * 0.72); vg.addColorStop(0, 'rgba(30,10,50,0)'); vg.addColorStop(1, 'rgba(30,10,50,0.3)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
@@ -6027,6 +6028,82 @@ class Game {
     }
     ctx.restore();
   }
+  /* ---------- living map 2: camera, island music, weather, dolphins, beacons ---------- */
+  mapZoneSong(z) {
+    if (!z || !BIOMES[z]) return 'map'; const k = 'mapz' + z; if (SONGS[k]) return k;
+    const src = SONGS[BIOMES[z].music] || SONGS.map, sty = { rock:'funk', epic:'latin', march:'shuffle' }[src.style] || src.style, ld = { brass:'marimba', synth:'pluck', organ:'bell', strings:'flute' };
+    SONGS[k] = Object.assign({}, src, { bpm:Util.clamp(Math.round(src.bpm * 0.8), 86, 122), style:sty, lead:ld[src.lead] || src.lead, arp:src.arp || 'marimba', swing:Math.max(src.swing || 0, 0.08), seed:src.seed + 500 }); return k;
+  }
+  updateMapLife2(L, dt, mp, moving, mdx) {
+    const base = [1.28, 1, 0.85][(this.opts && this.opts.mapZoom) || 0] || 1.28, run = moving && this.input.held('action'), tz = base * (run ? 0.93 : !moving && this.mapNear ? 1.05 : 1);
+    this.mapZoomNow = this.mapZoomNow ? this.mapZoomNow + (tz - this.mapZoomNow) * Math.min(1, dt * 2) : tz;
+    if (moving && OW.kind !== 'sea') { L.dust = (L.dust || 0) - dt; if (L.dust <= 0) { L.dust = run ? 0.08 : 0.2; this.particles.dust(mp.x, mp.y + 1, -Math.sign(mdx)); } }
+    if (this.state === 'map' && OW.kind === 'surface' && !this.trans) { const z = OW.zoneAt(mp.x, mp.y); if (z <= 13) { if (z !== L.sz) { L.sz = z; L.szT = 0; } else if ((L.szT += dt) > 0.5) { const want = this.mapZoneSong(z), cur = this.sound.trackName || '';
+      if (cur !== want && (cur === 'map' || /^mapz/.test(cur))) this.sound.play(want); } } }
+    const VR = this.viewRect || { x0:this.mapCam.x, y0:this.mapCam.y, x1:this.mapCam.x + VW, y1:this.mapCam.y + VH };
+    L.dt2 = (L.dt2 === undefined ? 2.5 : L.dt2) - dt; if (L.dt2 <= 0 && this.mapHasWater()) { L.dt2 = 5 + Math.random() * 6; for (let k = 0; k < 24; k++) { const x = VR.x0 + Math.random() * (VR.x1 - VR.x0), y = VR.y0 + 30 + Math.random() * Math.max(10, VR.y1 - VR.y0 - 60), d = Math.random() < 0.5 ? 1 : -1;
+      if (OW.depthAt(x, y) < -0.15 && OW.depthAt(x + d * 60, y) < -0.15 && OW.depthAt(x + d * 30, y) < -0.15 && OW.depthAt(x + d * 30, y + 14) < -0.1) { const n = 1 + ((Math.random() * 2.4) | 0); for (let j = 0; j < n; j++) L.dols.push({ x:x - d * j * 16, y:y + j * 7, d, t:-j * 0.22, dur:1.25, len:58, h:22 }); break; } } }
+    for (const o of L.dols) o.t += dt; if (L.dols.length) L.dols = L.dols.filter(o => o.t < o.dur + 0.6);
+    const k = this.mapWxKind(), tgt = { rain:70, snow:55, sand:26, spray:22, glint:26, neon:30 }[k] || 34;
+    for (const p of L.wx) { p.age += dt; p.x += p.vx * dt + (p.k === 'snow' || p.k === 'petal' || p.k === 'feather' || p.k === 'wisp' ? Math.sin(p.age * 1.6 + p.ph) * 12 * dt : 0); p.y += p.vy * dt; p.rot += p.vr * dt; }
+    L.wx = L.wx.filter(p => p.age < p.max && p.x > -40 && p.x < VW + 40 && p.y > -40 && p.y < VH + 40);
+    let need = tgt - L.wx.reduce((a, p) => a + (p.k === k ? 1 : 0), 0), cap = 6; while (need-- > 0 && cap-- > 0 && L.wx.length < 120) L.wx.push(this.wxSpawn(k));
+  }
+  mapWxKind() { if (OW.kind === 'sea') return 'bubble'; if (OW.kind === 'sky') return 'feather'; let key;
+    if (OW.isWorld) key = (BIOMES[OW.world] || {}).key; else { const z = this.mapZone; key = z !== undefined && z <= 13 && BIOMES[z] ? BIOMES[z].key : 'meadow'; }
+    return { meadow:'petal', frost:'snow', cave:'spore', desert:'sand', jungle:'leaf', ocean:'spray', foundry:'ember', candy:'confetti', haunted:'wisp', sky:'feather', neon:'neon', crystal:'glint', storm:'rain', citadel:'mote' }[key] || 'petal'; }
+  wxSpawn(k) { const R = Math.random, p = { k, x:R() * (VW + 40) - 20, y:R() * (VH + 20) - 10, vx:0, vy:0, rot:R() * 6.28, vr:(R() - 0.5) * 4, age:0, max:3 + R() * 4, sz:0.7 + R() * 0.6, ph:R() * 6.28, c:'#ffffff' };
+    switch (k) {
+      case 'petal': p.vx = 16 + R() * 12; p.vy = 14 + R() * 12; p.c = R() < 0.5 ? '#ffc0dc' : R() < 0.5 ? '#ffffff' : '#ffe08a'; break;
+      case 'leaf': p.vx = 10 + R() * 14; p.vy = 18 + R() * 14; p.c = ['#5ab83a', '#8ad04a', '#3a9a3a', '#c8d84a'][(R() * 4) | 0]; break;
+      case 'snow': p.vx = -4 + R() * 8; p.vy = 14 + R() * 16; break;
+      case 'rain': p.vx = -50; p.vy = 240 + R() * 60; p.max = 0.5 + R() * 0.6; p.c = 'rgba(190,220,255,0.55)'; break;
+      case 'confetti': p.vx = -10 + R() * 20; p.vy = 26 + R() * 20; p.vr = (R() - 0.5) * 12; p.c = ['#ff6ab0', '#ffd34d', '#6ad0ff', '#8aff8a', '#c08aff'][(R() * 5) | 0]; break;
+      case 'feather': p.vx = 6 + R() * 8; p.vy = 8 + R() * 8; p.max = 5 + R() * 4; break;
+      case 'sand': p.vx = 90 + R() * 70; p.vy = -4 + R() * 8; p.max = 1 + R() * 1.5; p.c = 'rgba(240,210,150,0.5)'; break;
+      case 'ember': p.vx = -6 + R() * 12; p.vy = -(18 + R() * 24); p.c = R() < 0.5 ? '#ffb040' : '#ff7a2a'; break;
+      case 'spore': p.vx = -4 + R() * 8; p.vy = -(6 + R() * 10); p.c = R() < 0.5 ? '#7affe0' : '#ff9ae8'; break;
+      case 'wisp': p.vx = -8 + R() * 16; p.vy = -(4 + R() * 8); p.max = 4 + R() * 3; p.c = R() < 0.5 ? '#8affc8' : '#9ad0ff'; break;
+      case 'mote': p.vx = -5 + R() * 10; p.vy = -(5 + R() * 8); p.c = '#d0a0ff'; break;
+      case 'bubble': p.vx = -3 + R() * 6; p.vy = -(16 + R() * 20); break;
+      case 'spray': case 'glint': p.max = 0.6 + R() * 0.8; p.c = k === 'glint' ? '#c8f8ff' : '#ffffff'; break;
+      case 'neon': p.vx = -6 + R() * 12; p.vy = -(4 + R() * 8); p.c = `hsl(${(R() * 360) | 0},100%,65%)`; break;
+    } return p; }
+  drawWeather(ctx, sc) { const L = this.mapLife; if (!L || L.ow !== OW || !L.wx.length) return; ctx.setTransform(sc, 0, 0, sc, 0, 0);
+    for (const p of L.wx) { const fa = Math.min(1, p.age / 0.5, (p.max - p.age) / 0.4); if (fa <= 0) continue; ctx.globalAlpha = fa; const x = p.x, y = p.y, s = p.sz;
+      switch (p.k) {
+        case 'petal': case 'leaf': case 'feather': ctx.fillStyle = p.c; ctx.save(); ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(Math.cos(p.age * 3 + p.ph) * 0.5 + 0.6, 1); ctx.beginPath(); ctx.ellipse(0, 0, (p.k === 'feather' ? 4 : p.k === 'leaf' ? 3 : 2.4) * s, (p.k === 'feather' ? 1 : 1.3) * s, 0, 0, 7); ctx.fill();
+          if (p.k === 'leaf') { ctx.strokeStyle = 'rgba(0,60,0,0.4)'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(-3 * s, 0); ctx.lineTo(3 * s, 0); ctx.stroke(); } ctx.restore(); break;
+        case 'snow': ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 1.2 * s, 0, 7); ctx.fill(); break;
+        case 'rain': ctx.strokeStyle = p.c; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + p.vx * 0.035, y + p.vy * 0.035); ctx.stroke(); break;
+        case 'confetti': ctx.fillStyle = p.c; ctx.save(); ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(Math.cos(p.age * 6 + p.ph), 1); ctx.fillRect(-1.5 * s, -1 * s, 3 * s, 2 * s); ctx.restore(); break;
+        case 'sand': ctx.strokeStyle = p.c; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 12 * s, y + 0.5); ctx.stroke(); break;
+        case 'bubble': ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.arc(x, y, 1.8 * s, 0, 7); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(x - 0.8 * s, y - 0.9 * s, 0.7, 0.7); break;
+        case 'spray': case 'glint': { const tw = Math.max(0, Math.sin(p.age / p.max * Math.PI)); ctx.fillStyle = p.c; ctx.globalAlpha = tw; ctx.fillRect(x - 2.5 * s * tw, y - 0.4, 5 * s * tw, 0.8); ctx.fillRect(x - 0.4, y - 2.5 * s * tw, 0.8, 5 * s * tw); break; }
+        default: { ctx.globalCompositeOperation = 'lighter'; const fl = 0.7 + 0.3 * Math.sin(p.age * 9 + p.ph), r = (p.k === 'wisp' ? 3.2 : p.k === 'neon' ? 1.8 : 1.4) * s; ctx.fillStyle = p.c; ctx.globalAlpha = fa * 0.35 * fl; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fill(); ctx.globalAlpha = fa * fl; ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, 7); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
+      } }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  drawSplash(ctx, x, y, p) { if (p < 0 || p > 1) return; ctx.strokeStyle = `rgba(255,255,255,${(1 - p) * 0.85})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(x, y, 4 + p * 12, 1.5 + p * 4, 0, 0, 7); ctx.stroke();
+    ctx.fillStyle = `rgba(255,255,255,${(1 - p) * 0.9})`; for (let k = 0; k < 5; k++) { const a = k * 0.7 - 1.4; ctx.beginPath(); ctx.arc(x + Math.sin(a) * p * 10, y - Math.sin(p * Math.PI) * 8 * (0.6 + (k % 2) * 0.4), 1.1, 0, 7); ctx.fill(); } }
+  drawDolphin(ctx, o, t) { const k = o.t / o.dur, ex = o.x + o.d * o.len;
+    if (o.t > -0.05 && o.t < 0.45) this.drawSplash(ctx, o.x, o.y, o.t / 0.45);
+    if (k > 0.82) this.drawSplash(ctx, ex, o.y, (o.t - o.dur * 0.82) / 0.6);
+    if (k <= 0 || k >= 1) return; const px = o.x + o.d * o.len * k, py = o.y - Math.sin(k * Math.PI) * o.h;
+    ctx.fillStyle = 'rgba(0,30,70,0.18)'; ctx.beginPath(); ctx.ellipse(px, o.y + 1, 8, 2, 0, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(px, py); ctx.scale(o.d, 1); ctx.rotate(Math.atan2(-Math.cos(k * Math.PI) * o.h * Math.PI, o.len));
+    ctx.fillStyle = '#5a8ad0'; ctx.beginPath(); ctx.ellipse(0, 0, 10, 3.6, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.ellipse(10, 0.6, 3, 1.3, 0, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-1, -3); ctx.lineTo(-5, -7.5); ctx.lineTo(-4.5, -2.8); ctx.fill(); ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(-14, -3.5); ctx.lineTo(-12.5, 0); ctx.lineTo(-14, 3.5); ctx.fill();
+    ctx.fillStyle = '#d8ecff'; ctx.beginPath(); ctx.ellipse(1, 1.5, 7, 1.7, 0, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(1, -2, 5, 0.9, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#10203a'; ctx.fillRect(6, -1.4, 1.2, 1.2); ctx.restore(); }
+  drawNodeBeacon(ctx, n, t) { if (n.kind !== 'stage' && n.kind !== 'trial' && n.kind !== 'secret') return; if (!this.nodeOpen(n) || this.nodeDone(n)) return;
+    const a = 0.2 + 0.09 * Math.sin(t * 3 + n.x), x = n.x, y = n.y; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createLinearGradient(0, y - 74, 0, y); g.addColorStop(0, 'rgba(255,240,170,0)'); g.addColorStop(1, `rgba(255,240,170,${a})`); ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x - 5, y - 74); ctx.lineTo(x + 5, y - 74); ctx.lineTo(x + 10, y); ctx.fill();
+    for (let k = 0; k < 3; k++) { const ph = (t * 0.6 + k / 3 + n.x * 0.01) % 1; ctx.fillStyle = `rgba(255,250,200,${(1 - ph) * 0.8})`; ctx.beginPath(); ctx.arc(x + Math.sin(ph * 9 + k) * 4, y - ph * 62, 1.3, 0, 7); ctx.fill(); }
+    ctx.restore(); }
+  drawSkyRainbow(ctx, T, cam, t) { const k = this.skyKey(); if (!/^(surface|meadow|jungle|candy|sky|skyrealm|ocean|desert|crystal)$/.test(k)) return;
+    const cx = VW * 0.66 - cam.x * 0.03 + 40, cy = T.HZ + 42, R = 86, cols = ['#ff6a6a', '#ffb04a', '#ffe85a', '#7ae07a', '#6ab8ff', '#a07aff'];
+    ctx.save(); ctx.globalAlpha = 0.24 + 0.04 * Math.sin(t * 0.5); ctx.lineWidth = 3.6; cols.forEach((c, i) => { ctx.strokeStyle = c; ctx.beginPath(); ctx.arc(cx, cy, R - i * 3.4, Math.PI, 2 * Math.PI); ctx.stroke(); }); ctx.restore(); }
   drawMapProp(ctx, p, t) {
     if (this.drawToyProp(ctx, p, t)) return;
     const x = p.x, y = p.y, s = p.s * 1.25, v = p.v;
@@ -6202,8 +6279,8 @@ class Game {
     for (const P2 of this.save.placed || []) if (P2.m === OW.kind && vis(P2.x, P2.y, 40)) objs.push({ x:P2.x, y:P2.y, d:() => { Art.drawStandee(ctx, P2.k, P2.x, P2.y, 0.75, t); if (Util.dist(mp.x, mp.y, P2.x, P2.y) < 30 && STANDEE_BY[P2.k]) ui.txt(ctx, STANDEE_BY[P2.k].n, P2.x, P2.y - 30, { size:6, align:'center', color:'#ffffff' }); } });
     for (const r of OW.rocks || []) if (!this.rockGone(r) && vis(r.x, r.y, 30)) objs.push({ x:r.x, y:r.y + 4, d:() => this.drawRock(ctx, r, t) });
     for (const pr of OW.props) if (vis(pr.x, pr.y, 40)) objs.push({ x:pr.x, y:pr.y, d:() => this.drawMapProp(ctx, pr, t) });
-    for (const L of OW.landmarks) if (vis(L.x, L.y - 60, 160)) objs.push({ x:L.x, y:L.y, d:() => this.drawLandmark(ctx, L, t) });
-    for (const n of OW.nodes) if (this.nodeVisible(n) && vis(n.x, n.y, 50)) objs.push({ x:n.x, y:n.y, d:() => { const g = (n.kind === 'stage' || n.kind === 'world' || n.kind === 'shop' || n.kind === 'house' || n.kind === 'trial' || n.kind === 'secret') ? (this.groove || 0) : 0, pe = n.pop ? Math.max(0, 1 - (t - n.pop) * 2.2) : 0, pw = pe ? Math.sin((t - n.pop) * 22) * 0.16 * pe : 0;
+    for (const L of OW.landmarks) if (vis(L.x, L.y - 60, 160)) objs.push({ x:L.x, y:L.y, d:() => { const bh = mp.y < L.y - 4 && mp.y > L.y - 150 && Math.abs(mp.x - L.x) < 75; if (bh) ctx.globalAlpha = 0.5; this.drawLandmark(ctx, L, t); ctx.globalAlpha = 1; } });
+    for (const n of OW.nodes) if (this.nodeVisible(n) && vis(n.x, n.y, 50)) objs.push({ x:n.x, y:n.y, d:() => { this.drawNodeBeacon(ctx, n, t); const g = (n.kind === 'stage' || n.kind === 'world' || n.kind === 'shop' || n.kind === 'house' || n.kind === 'trial' || n.kind === 'secret') ? (this.groove || 0) : 0, pe = n.pop ? Math.max(0, 1 - (t - n.pop) * 2.2) : 0, pw = pe ? Math.sin((t - n.pop) * 22) * 0.16 * pe : 0;
       if (g > 0.01 || pe > 0) { ctx.save(); ctx.translate(n.x, n.y); ctx.scale(1 - g * 0.035 - pw * 0.6, 1 + g * 0.06 + pw); ctx.translate(-n.x, -n.y); this.drawMapNode(ctx, n, t, n === this.mapNear); ctx.restore(); } else this.drawMapNode(ctx, n, t, n === this.mapNear); } });
     for (const sl of OW.islets) if (sl.kind === 'secret' && !this.secretOpen(sl.zone) && vis(sl.x, sl.y, 40)) objs.push({ x:sl.x, y:sl.y, d:() => {
       const b = Math.sin(t * 2 + sl.x) * 2; ctx.fillStyle = 'rgba(255,154,240,0.25)'; ctx.beginPath(); ctx.arc(sl.x, sl.y - 12 + b, 10 + Math.sin(t * 4) * 1.5, 0, 7); ctx.fill();
@@ -6225,6 +6302,7 @@ class Game {
       for (let k = 0; k < 6; k++) { const a = k * 1.047 + t * 0.5; ctx.fillStyle = `hsl(${f.hue},85%,62%)`; ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * 5, f.y - 13 + bob + Math.sin(a) * 5, 3.2, 0, 7); ctx.fill(); }
       ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(f.x, f.y - 13 + bob, 4.2, 0, 7); ctx.fill();
       ctx.fillStyle = '#2a1a0a'; ctx.fillRect(f.x - 2 + look, f.y - 15 + bob, 1, 2); ctx.fillRect(f.x + 1 + look, f.y - 15 + bob, 1, 2); ctx.fillRect(f.x - 1 + look, f.y - 12 + bob, 2, talk ? 2 : 1);
+      { const bp = this.beatPos || 0, bn = Math.floor(bp), ph = bp - bn; if (Util.hash(f.hue * 3.1 + bn * 7.7) < 0.3) { ctx.globalAlpha = Math.max(0, 1 - ph); ctx.fillStyle = `hsl(${f.hue},90%,42%)`; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(Util.hash(bn + f.hue) < 0.5 ? '\u266a' : '\u266b', f.x + 6 + ph * 5, f.y - 22 - ph * 12); ctx.globalAlpha = 1; } }
     } });
     for (const c of OW.caches) if (vis(c.x, c.y, 30)) { const got = s.mapCoins && s.mapCoins[c.id]; objs.push({ x:c.x, y:c.y, d:() => {
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(c.x, c.y + 1, 8, 2.5, 0, 0, 7); ctx.fill();
@@ -6232,20 +6310,20 @@ class Game {
       if (got) { ctx.fillStyle = '#5a3418'; ctx.fillRect(c.x - 7, c.y - 14, 14, 5); ctx.fillStyle = '#2a1a0a'; ctx.fillRect(c.x - 6, c.y - 9, 12, 2); }
       else { const bob = Math.sin(t * 3 + c.x) * 0.6; ctx.fillStyle = '#9a6234'; ctx.fillRect(c.x - 7, c.y - 12 + bob, 14, 5); ctx.fillStyle = '#ffd34d'; ctx.fillRect(c.x - 7, c.y - 9 + bob, 14, 1); if (Math.random() < 0.06) this.particles.sparkle(c.x + (Math.random() - 0.5) * 12, c.y - 12, '#fff7a8', 1); }
     } }); }
-    for (const v of OW.villagers || []) if (vis(v.x, v.y, 30)) objs.push({ x:v.x, y:v.y, d:() => this.drawVillager(ctx, v, t) });
+    for (const v of OW.villagers || []) if (vis(v.x, v.y, 30)) objs.push({ x:v.x, y:v.y, d:() => { const g = this.groove || 0; ctx.save(); ctx.translate(v.x, v.y); ctx.scale(1 - g * 0.06, 1 + g * 0.09); ctx.translate(-v.x, -v.y); this.drawVillager(ctx, v, t); ctx.restore(); } });
     this.online.peers.forEach((pr, i) => { const q = pr.presence || {}; if (q.st === 'map' && typeof q.mx === 'number' && (q.mr || 'surface') === OW.kind && vis(q.mx, q.my, 30)) objs.push({ x:q.mx, y:q.my, d:() => {
       ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(q.mx, q.my + 1, 6, 2.5, 0, 0, 7); ctx.fill();
       Art.pip(ctx, q.mx - 6, q.my - 15, { big:false, power:0, facing:1, frame:Math.floor(t * 10 + i) % 4, state:q.mw ? 'walk' : 'stand', t:t + i, star:false, grav:1, tint:TINTS[(q.c || 0) % TINTS.length] });
       ui.txt(ctx, 'P' + (i + 2), q.mx, q.my - 20, { size:6, align:'center', color:TINTS[(q.c || 0) % TINTS.length][0] }); } }); });
     const walking = ['left','right','up','down'].some(k => this.input.held(k) || (this.coopOn() && this.input2.held(k))) && !this.badgeMenu && !this.bridgeAnim;
-    if (this.coopOn()) { const tr = this.mapTrail || [], q = tr[tr.length - 1] || { x:mp.x - 14, y:mp.y }, fq = mp.x >= q.x ? 1 : -1; objs.push({ x:q.x, y:q.y - 0.1, d:() => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(q.x, q.y + 1, 6, 2.5, 0, 0, 7); ctx.fill();
-      Art.pip(ctx, q.x - 6, q.y - 15 + (walking ? -Math.abs(Math.sin(this.mapWalkT * 1.2 + 1)) * 2 : 0), { big:false, power:0, facing:fq, frame:Math.floor(this.mapWalkT + 2) % 4, state:walking ? 'walk' : 'stand', t:t + 1, star:false, grav:1, tint:this.p2Color() }); ui.txt(ctx, 'P2', q.x, q.y - 19, { size:6, align:'center', color:this.p2Color()[0] }); } }); }
-    objs.push({ x:mp.x, y:mp.y, d:() => {
+    if (this.coopOn()) { const tr = this.mapTrail || [], q = tr[tr.length - 1] || { x:mp.x - 14, y:mp.y }, fq = mp.x >= q.x ? 1 : -1; objs.push({ x:q.x, y:q.y - 0.1, d:() => { ctx.save(); ctx.translate(q.x, q.y); ctx.scale(1.3, 1.3); ctx.translate(-q.x, -q.y); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(q.x, q.y + 1, 6, 2.5, 0, 0, 7); ctx.fill();
+      Art.pip(ctx, q.x - 6, q.y - 15 + (walking ? -Math.abs(Math.sin(this.mapWalkT * 1.2 + 1)) * 2 : 0), { big:false, power:0, facing:fq, frame:Math.floor(this.mapWalkT + 2) % 4, state:walking ? 'walk' : 'stand', t:t + 1, star:false, grav:1, tint:this.p2Color() }); ui.txt(ctx, 'P2', q.x, q.y - 19, { size:6, align:'center', color:this.p2Color()[0] }); ctx.restore(); } }); }
+    objs.push({ x:mp.x, y:mp.y, d:() => { ctx.save(); ctx.translate(mp.x, mp.y); ctx.scale(1.3, 1.3); ctx.translate(-mp.x, -mp.y);
       ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(mp.x, mp.y + 1, 7, 3, 0, 0, 7); ctx.fill();
-      const bob = walking ? -Math.abs(Math.sin(this.mapWalkT * 1.2)) * 4.5 : 0;
+      const bob = walking ? -Math.abs(Math.sin(this.mapWalkT * 1.2)) * 4.5 : -(this.groove || 0) * 1.6;
       Art.pip(ctx, mp.x - 6, mp.y - 15 + bob, { big:false, power:0, facing:this.mapFacing || 1, frame:Math.floor(this.mapWalkT) % 4, state:walking ? 'walk' : 'stand', t, star:false, grav:1, tint:this.online.room ? TINTS[this.online.color] : null, look:walking ? 0 : (Math.sin(t * 0.8) > 0.6 ? 1 : 0) });
       if (OW.kind === 'sea') { ctx.strokeStyle = 'rgba(220,250,255,0.85)'; ctx.lineWidth = 1; ctx.fillStyle = 'rgba(200,240,255,0.18)'; ctx.beginPath(); ctx.arc(mp.x, mp.y - 10 + bob, 8.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.fillRect(mp.x - 5, mp.y - 15 + bob, 2, 1); }
-      if (this.mapWading) { ctx.fillStyle = 'rgba(70,175,230,0.8)'; ctx.fillRect(mp.x - 8, mp.y - 4, 16, 5); ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.3 * Math.sin(t * 6)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(mp.x, mp.y - 3, 9 + Math.sin(t * 4) * 1.5, 3, 0, 0, 7); ctx.stroke(); }
+      if (this.mapWading) { ctx.fillStyle = 'rgba(70,175,230,0.8)'; ctx.fillRect(mp.x - 8, mp.y - 4, 16, 5); ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.3 * Math.sin(t * 6)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(mp.x, mp.y - 3, 9 + Math.sin(t * 4) * 1.5, 3, 0, 0, 7); ctx.stroke(); } ctx.restore();
     } });
     for (const si of OW.skyIsles || []) if (vis(si.x, si.y, 160)) objs.push({ x:si.x, y:si.y + 140, d:() => { const b = Math.sin(t * 0.8 + si.ph) * 5;
       ctx.fillStyle = 'rgba(0,30,70,0.16)'; ctx.beginPath(); ctx.ellipse(si.x, si.y + 140, si.p.x1 - si.x, (si.p.y1 - si.y) * 0.7, 0, 0, 7); ctx.fill(); ctx.save(); ctx.translate(0, b - 10); this.drawPieceHQ(ctx, si.p, t);
@@ -6253,15 +6331,15 @@ class Game {
       if (si.ph === 0) { ctx.save(); ctx.translate(si.x + 52, si.y - 46 + Math.sin(t * 1.6) * 3); ctx.scale(0.3, 0.3); Art.airship(ctx, t, false); ctx.restore(); }
       ctx.restore(); } });
     for (const c of this.mapClouds()) { const cx2 = ((c.x + t * c.sp) % (OW.w + 200)) - 100; if (vis(cx2, c.y, 140)) objs.push({ x:cx2, y:c.y + 40, d:() => { const sp = Art.cloudToy(); ctx.globalAlpha = Util.dist(mp.x, mp.y, cx2, c.y - 40) < 90 ? 0.45 : 0.9; ctx.imageSmoothingEnabled = true; ctx.drawImage(sp.cv, cx2 - sp.w * c.s / 2, c.y - 40 - sp.h * c.s, sp.w * c.s, sp.h * c.s); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 1; } }); }
-    { const L = this.mapLife; if (L && L.ow === OW) for (const b of L.blooms) if (vis(b.x, b.y, 10)) objs.push({ x:b.x, y:b.y, d:() => this.drawBloom(ctx, b, t) }); }
+    { const L = this.mapLife; if (L && L.ow === OW) { for (const b of L.blooms) if (vis(b.x, b.y, 10)) objs.push({ x:b.x, y:b.y, d:() => this.drawBloom(ctx, b, t) }); for (const o of L.dols) if (vis(o.x, o.y, 70)) objs.push({ x:o.x + o.d * o.len / 2, y:o.y, d:() => this.drawDolphin(ctx, o, t) }); } }
     objs.sort((a, b) => a.y - b.y); for (const o of objs) { if (T3 && !this.tiltAt(ctx, T3, o.x === undefined ? mp.x : o.x, o.y)) continue; o.d(); }
-    this.drawMapLifeAir(ctx, T3, t);
+    this.drawMapLifeAir(ctx, T3, t); if (T3) { const pp = T3.proj(mp.x, mp.y); this.pipScreen = { x:pp.x, y:pp.y - 16 * pp.s }; } else this.pipScreen = { x:mp.x - cam.x, y:mp.y - cam.y - 14 };
     if (T3) this.tiltAt(ctx, T3, mp.x, mp.y, true);
     for (const z of OW.zones) if (vis(z.x, z.y, z.R + 40)) this.drawIslandFx(ctx, z, t);
     if (OW.kind !== 'sea') for (let i = 0; i < 7; i++) { const a = t * (0.05 + i * 0.008) + i * 1.9, gx = OW.w / 2 + Math.cos(a) * (500 + i * 160), gy = OW.h / 2 + Math.sin(a * 1.3) * (380 + i * 90); if (!vis(gx, gy, 40)) continue;
       const fl = Math.sin(t * 9 + i) * 3; ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(gx + 18, gy + 30, 6, 2);
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(gx - 6, gy - fl); ctx.quadraticCurveTo(gx - 3, gy - 2, gx, gy); ctx.quadraticCurveTo(gx + 3, gy - 2, gx + 6, gy - fl); ctx.stroke(); }
-    if (OW.kind === 'surface') { if (T3) this.tiltAt(ctx, T3, OW.cx, OW.cy - 330, true); this.drawMalakorGhost(ctx, t); if (T3) this.tiltAt(ctx, T3, mp.x, mp.y, true); }
+    if (OW.kind === 'surface') { if (!T3 || this.tiltAt(ctx, T3, OW.cx, OW.cy - 330 * (OW.core || 1) + 120)) this.drawMalakorGhost(ctx, t); if (T3) this.tiltAt(ctx, T3, mp.x, mp.y, true); }
     this.drawMapAmbient(ctx, cam, t, true);
     this.particles.draw(ctx, 0, 0);
     this.drawMapPost(ctx, T3, t);
@@ -6958,7 +7036,7 @@ class Game {
   loadOpts() { const d = { mv:1, sv:1, shake:1 }; try { return Object.assign(d, JSON.parse(localStorage.getItem('chronoKingdom_opts')) || {}); } catch (e) { return d; } }
   saveOpts() { try { localStorage.setItem('chronoKingdom_opts', JSON.stringify(this.opts)); } catch (e) {} this.sound.setVol(this.opts.mv, this.opts.sv); }
   openSettings(back) { this.setBack = back; this.state = 'settings'; this.setSel = 0; this.setPage = 'main'; this.capturing = false; this.sound.sfx('select'); }
-  settingsItems() { return ['MUSIC VOLUME','SOUND FX VOLUME','SCREEN SHAKE','RESOLUTION','MAP VIEW','KEYBINDS','LOCAL 2 PLAYERS','P2 KEYBINDS','P2 COLOR','BACK']; }
+  settingsItems() { return ['MUSIC VOLUME','SOUND FX VOLUME','SCREEN SHAKE','RESOLUTION','MAP VIEW','MAP ZOOM','KEYBINDS','LOCAL 2 PLAYERS','P2 KEYBINDS','P2 COLOR','BACK']; }
   updateSettings() {
     const inp = this.input, U = inp.any('up','nav_up'), D = inp.any('down','nav_down'), Lf = inp.any('left','nav_left'), Rt = inp.any('right','nav_right'), OK = inp.any('confirm');
     if (this.setPage === 'keys') { this.updateKeybinds(U, D, Lf, Rt, OK); return; }
@@ -6970,6 +7048,7 @@ class Game {
     else if ((Lf || Rt || OK) && it === 'SCREEN SHAKE') { o.shake = o.shake ? 0 : 1; this.saveOpts(); this.sound.sfx('select'); }
     else if ((Lf || Rt || OK) && it === 'RESOLUTION') { const M = ['auto','ultra','classic'], i = Math.max(0, M.indexOf(o.res || 'auto')); o.res = M[(i + (Lf ? 2 : 1)) % 3]; this.resCap = 0; this.saveOpts(); this.applyRes(); this.sound.sfx('select'); this.toast(`Resolution: ${this.resLabel()} (${VW * RS}x${VH * RS})`); }
     else if ((Lf || Rt || OK) && it === 'MAP VIEW') { o.flat = !o.flat; this.saveOpts(); this.sound.sfx('select'); }
+    else if ((Lf || Rt || OK) && it === 'MAP ZOOM') { o.mapZoom = ((o.mapZoom || 0) + (Lf ? 2 : 1)) % 3; this.saveOpts(); this.sound.sfx('select'); }
     else if ((Lf || Rt || OK) && it === 'LOCAL 2 PLAYERS') { this.toggleCoop(); this.sound.sfx('select'); }
     else if ((Lf || Rt || OK) && it === 'P2 COLOR') { o.p2c = ((o.p2c || 1) + (Lf ? TINTS.length - 3 : 0)) % (TINTS.length - 1) + 1; this.player2.tint = this.p2Color(); this.saveOpts(); this.sound.sfx('select'); }
     else if (OK && it === 'P2 KEYBINDS') { this.keyP2 = true; this.setPage = 'keys'; this.keySel = 0; this.keyCol = 0; this.sound.sfx('select'); }
@@ -6977,7 +7056,7 @@ class Game {
     else if ((OK && it === 'BACK') || inp.hit('back')) { this.sound.sfx('select'); this.state = this.setBack || 'title'; }
   }
   updateKeybinds(U, D, Lf, Rt, OK) {
-    const inp = this.keyP2 ? this.input2 : this.input, BL = this.keyP2 ? P2_LABELS : BL, n = BL.length + 2;
+    const inp = this.keyP2 ? this.input2 : this.input, BL = this.keyP2 ? P2_LABELS : BIND_LABELS, n = BL.length + 2;
     if (this.capturing) return;
     if (U) { this.keySel = (this.keySel + n - 1) % n; this.sound.sfx('move'); }
     if (D) { this.keySel = (this.keySel + 1) % n; this.sound.sfx('move'); }
@@ -7004,7 +7083,7 @@ class Game {
     if (this.setPage === 'keys') { this.drawKeybinds(ctx); return; }
     ui.txt(ctx, 'SETTINGS', VW / 2, 42, { size:14, align:'center', color:'#ffd34d' });
     this.settingsItems().forEach((it, i) => {
-      const y = 62 + i * 20, sel = i === this.setSel;
+      const y = 60 + i * 18.6, sel = i === this.setSel;
       if (sel) { ctx.fillStyle = 'rgba(245,210,122,0.15)'; ctx.fillRect(60, y - 12, VW - 120, 17); Art.gear(ctx, 72, y - 4, 5, 8, t * 4, '#ffd34d'); }
       ui.txt(ctx, it, 86, y, { size:10, color:sel ? '#ffd34d' : '#fff' });
       if (it.includes('VOLUME')) { const v = it.startsWith('MUSIC') ? this.opts.mv : this.opts.sv; for (let k = 0; k < 10; k++) { const hh = 5 + k * 0.6; ctx.fillStyle = k < Math.round(v * 10) ? '#5aff8a' : 'rgba(255,255,255,0.18)'; ctx.fillRect(280 + k * 12, y - hh, 9, hh); } ui.txt(ctx, Math.round(v * 100) + '%', VW - 66, y, { size:8, align:'right', color:'#c8c0e0' }); }
@@ -7012,6 +7091,7 @@ class Game {
       if (it === 'KEYBINDS') ui.txt(ctx, 'PLAYER 1 CONTROLS >', 280, y, { size:8, color:'#bfe8ff' });
       if (it === 'P2 KEYBINDS') ui.txt(ctx, 'PLAYER 2 CONTROLS >', 280, y, { size:8, color:'#bfe8ff' });
       if (it === 'MAP VIEW') ui.txt(ctx, this.tiltOn() ? '3D TILT' : 'FLAT', 280, y, { size:10, color:'#8af0e0' });
+      if (it === 'MAP ZOOM') ui.txt(ctx, ['CLOSE', 'NORMAL', 'WIDE'][this.opts.mapZoom || 0], 280, y, { size:10, color:'#8af0e0' });
       if (it === 'LOCAL 2 PLAYERS') ui.txt(ctx, this.coopOn() ? 'ON' : 'OFF', 280, y, { size:10, color:this.coopOn() ? '#5aff8a' : '#ff7a7a' });
       if (it === 'P2 COLOR') { const c = this.p2Color(); ctx.fillStyle = c[0]; ctx.fillRect(280, y - 8, 30, 9); ctx.save(); ctx.translate(318, y - 12); ctx.scale(0.8, 0.8); Art.pip(ctx, 0, 0, { big:false, power:0, facing:1, frame:0, state:'stand', t, star:false, grav:1, tint:c }); ctx.restore(); }
       if (it === 'RESOLUTION') { ui.txt(ctx, `< ${this.resLabel()} >`, 280, y, { size:10, color:'#8af0e0' }); ui.txt(ctx, `${VW * RS} x ${VH * RS}`, VW - 66, y, { size:8, align:'right', color:'#c8c0e0' }); }
@@ -7893,9 +7973,9 @@ class Game {
   /* ---------- 3D tilted map camera ---------- */
   tiltOn() { return !(this.opts && this.opts.flat); }
   tiltSetup(cam) {
-    const sTop = 0.7, VHv = VH * 1.34, HZ = Math.round(VH * 0.22), VWb = VW / sTop, G1 = (1 + sTop) / 2, tcx = cam.x + VW / 2, ty0 = cam.y + VH / 2 - 16 - 0.6 * VHv;
-    const T = { sTop, VHv, HZ, VWb, G1, tcx, ty0, x0:tcx - VWb / 2, y0:ty0 };
-    T.s = tt => sTop + (1 - sTop) * tt; T.Y = tt => HZ + (VH - HZ) * (sTop * tt + (1 - sTop) * tt * tt / 2) / G1;
+    const Z = this.mapZoomNow || 1, sTop = 0.7, VHv = VH * 1.34 / Z, HZ = Math.round(VH * 0.22), VWb = VW / sTop / Z, G1 = (1 + sTop) / 2, tcx = cam.x + VW / 2, ty0 = cam.y + VH / 2 - 16 / Z - 0.6 * VHv;
+    const T = { sTop, VHv, HZ, VWb, G1, tcx, ty0, Z, x0:tcx - VWb / 2, y0:ty0 };
+    T.s = tt => (sTop + (1 - sTop) * tt) * Z; T.Y = tt => HZ + (VH - HZ) * (sTop * tt + (1 - sTop) * tt * tt / 2) / G1;
     T.proj = (x, y) => { const tt = (y - ty0) / VHv, s = T.s(tt); return { x:VW / 2 + (x - tcx) * s, y:T.Y(tt), s, t:tt }; };
     this.viewRect = { x0:T.x0 - 30, x1:T.x0 + VWb + 30, y0:ty0 - 40, y1:ty0 + VHv + 70 };
     return T;
@@ -7916,6 +7996,7 @@ class Game {
       ctx.globalAlpha = 0.5; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(x - w * 0.05, y - h * 0.9, w * 0.18, 1.4, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
   }
   drawMountains(ctx, T, cam, t, C3) {
+    this.drawSkyRainbow(ctx, T, cam, t);
     const mix = (a, b, f) => { const A = parseInt(a.slice(1), 16), B = parseInt(b.slice(1), 16), c = [16, 8, 0].map(sh => Math.round(((A >> sh) & 255) * (1 - f) + ((B >> sh) & 255) * f)); return `rgb(${c[0]},${c[1]},${c[2]})`; };
     const base = T.HZ + 2, layers = [[0.05, 0.62, 30, 150, 0.72], [0.1, 0.42, 22, 110, 0.5], [0.18, 0.22, 14, 80, 0.25]];
     layers.forEach(([par, haze, hgt, wid, snow], L) => { const off = -cam.x * par, col = mix(C3[2].startsWith('#') ? C3[2] : '#6a9a6a', C3[1], haze), n = Math.ceil(VW / wid) + 3;
@@ -7945,13 +8026,13 @@ class Game {
     g.restore();
   }
   tiltGround(T) {
-    const w = Math.ceil(T.VWb), h = Math.ceil(T.VHv), q = Math.min(RS, 4);
-    if (!this.gbuf || this.gbuf.width !== w * q || this.gbuf.height !== h * q) { this.gbuf = Art.mk(w * q, h * q); this.gctx = this.gbuf.getContext('2d'); }
+    const w = Math.ceil(T.VWb), h = Math.ceil(T.VHv), q = Math.min(RS * Math.max(1, T.Z || 1), 4); this.gW = Math.ceil(w * q); this.gH = Math.ceil(h * q);
+    if (!this.gbuf || this.gbuf.width < this.gW || this.gbuf.height < this.gH || this.gbuf.width > this.gW * 1.6) { this.gbuf = Art.mk(Math.ceil(this.gW * 1.08), Math.ceil(this.gH * 1.08)); this.gctx = this.gbuf.getContext('2d'); }
     const g = this.gctx; g.setTransform(q, 0, 0, q, 0, 0); g.imageSmoothingEnabled = false; this.drawGroundBG(g, T, this.time); g.setTransform(q, 0, 0, q, -T.x0 * q, -T.y0 * q); return g;
   }
   tiltWarp(ctx, T) {
-    const N = 72, hb = this.gbuf.height / N; ctx.save(); ctx.imageSmoothingEnabled = true;
-    for (let i = 0; i < N; i++) { const t0 = i / N, t1 = (i + 1) / N, y0 = T.Y(t0), y1 = T.Y(t1), ww = T.VWb * T.s((t0 + t1) / 2); ctx.drawImage(this.gbuf, 0, i * hb, this.gbuf.width, hb, VW / 2 - ww / 2, y0, ww, y1 - y0 + 0.6); }
+    const N = 72, hb = (this.gH || this.gbuf.height) / N; ctx.save(); ctx.imageSmoothingEnabled = true;
+    for (let i = 0; i < N; i++) { const t0 = i / N, t1 = (i + 1) / N, y0 = T.Y(t0), y1 = T.Y(t1), ww = T.VWb * T.s((t0 + t1) / 2); ctx.drawImage(this.gbuf, 0, i * hb, this.gW || this.gbuf.width, hb, VW / 2 - ww / 2, y0, ww, y1 - y0 + 0.6); }
     const C3 = SKYC[this.skyKey()] || SKYC.surface, hz = ctx.createLinearGradient(0, T.HZ - 2, 0, T.HZ + 60); hz.addColorStop(0, C3[1]); hz.addColorStop(0.15, C3[1] + 'aa'); hz.addColorStop(1, C3[1] + '00');
     ctx.fillStyle = hz; ctx.fillRect(0, T.HZ - 2, VW, 62); ctx.restore();
   }
@@ -8015,7 +8096,8 @@ class Game {
     }
     if (this.standeePop && (this.state === 'map' || this.state === 'shop')) this.drawStandeePop(ctx);
     if (this.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.8, this.flash * 3)})`; ctx.fillRect(0, 0, VW, VH); }
-    if (this.trans) { const tr = this.trans, a = tr.t < tr.dur ? tr.t / tr.dur : 1 - (tr.t - tr.dur) / tr.dur; ctx.fillStyle = `rgba(6,4,14,${Util.clamp(a, 0, 1)})`; ctx.fillRect(0, 0, VW, VH); }
+    if (this.trans) { const tr = this.trans, a = Util.clamp(tr.t < tr.dur ? tr.t / tr.dur : 1 - (tr.t - tr.dur) / tr.dur, 0, 1), c = this.state === 'map' && this.pipScreen ? this.pipScreen : { x:VW / 2, y:VH / 2 }, R = Math.hypot(VW, VH) * Math.pow(1 - a, 1.6);
+      ctx.fillStyle = '#0a0618'; ctx.beginPath(); ctx.rect(-10, -10, VW + 20, VH + 20); if (R > 0.5) ctx.arc(c.x, c.y, R, 0, Math.PI * 2, true); ctx.fill('evenodd'); if (R > 2 && a > 0.04) { ctx.strokeStyle = 'rgba(255,211,77,0.9)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, 7); ctx.stroke(); } }
   }
   drawLevel(ctx) {
     const room = this.room, p = this.player, t = this.time;
