@@ -4809,14 +4809,15 @@ const HUB_HOURS = { 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8, 9:9, 10:10, 11:11, 1
 const WORLD_SIZE = { 4:[1.25, 1045], 6:[1.25, 1045], 10:[1.25, 1045], 7:[0.6, 835] };
 for (let i = 1; i <= 12; i++) HUB_HOUR_INV[HUB_HOUR(i)] = i;
 function buildKingdom() {
-  const W = 3400, H = 3400, CX = 1700, CY = 1700, KC = 1.35, KS = 1.27, M = makeVMap('surface', W, H), [add, link] = vmapLinker(M);
-  M.cx = CX; M.cy = CY; M.core = KC;
-  const P = (deg, r) => [CX + Math.cos(deg * Math.PI / 180) * r, CY + Math.sin(deg * Math.PI / 180) * r];
+  const W = 4000, H = 3600, KC = 1.35, CTX = 2600, CTY = 720, M = makeVMap('surface', W, H), [add, link] = vmapLinker(M);
+  M.cx = CTX; M.cy = CTY; M.core = KC;
+  const P = (deg, r) => [CTX + Math.cos(deg * Math.PI / 180) * r, CTY + Math.sin(deg * Math.PI / 180) * r];
   const toward = (a, b, d) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [a[0] + dx / l * d, a[1] + dy / l * d]; };
-  // island 1 of 8: Malakor's fortress at the heart of the sea
-  addPiece(M, VMath.blob(CX, CY, 160 * KC, 135 * KC, 991, 0, 56, 0.12), { zone:13, elev:0, h:70, style:'fortress' });
-  // island 2 of 8: the hub (World 1)
-  const HX = CX, HY = CY + 1130, HRX = 420, HRY = 292;
+  const erad = (rx, ry, rot, dx, dy) => { const a = Math.atan2(dy, dx) - rot, c = Math.cos(a), s = Math.sin(a); return 1 / Math.sqrt((c / rx) * (c / rx) + (s / ry) * (s / ry)); };
+  // the end of the journey: Malakor's Astral Citadel, looming in the stormy north-east
+  addPiece(M, VMath.blob(CTX, CTY, 160 * KC, 135 * KC, 991, 0, 56, 0.12), { zone:13, elev:0, h:70, style:'fortress' });
+  // the beginning: home, on the sunny meadows of the south-west (World 1)
+  const HX = 900, HY = 3010, HRX = 420, HRY = 292;
   addPiece(M, VMath.blob(HX, HY, HRX, HRY, 11, 0, 72, 0.13), { zone:0, elev:0, h:66, style:'isleGrass' });
   addPiece(M, VMath.blob(HX - 76, HY + 38, 240, 152, 12, 0, 48, 0.12), { zone:0, elev:1, h:16, style:'isleGrass' });
   addPiece(M, VMath.blob(HX + 190, HY - 89, 140, 89, 13, 0.3, 40, 0.12), { zone:0, elev:1, h:18, style:'isleSand' });
@@ -4830,49 +4831,48 @@ function buildKingdom() {
   link(start, add({ kind:'vault', idx:BONUS_STAGE, x:HX - 13, y:HY + 25, zone:0 }));
   link(w1[1], add({ kind:'house', x:HX - 368, y:HY + 150, zone:0, anchor:2 }));
   link(w1[3], add({ kind:'secret', idx:SECRET_START, x:HX + 203, y:HY + 200, zone:0, world:0 }));
-  // islands 3-8: six great islands ringing the sea, two worlds on each
-  const regions = {}, gates = [], entries = [];
-  for (let k = 1; k <= 6; k++) {
-    const deg = 90 - k * 360 / 7, a = deg * Math.PI / 180, C = P(deg, 1130), ti = [-Math.sin(a), Math.cos(a)], rot = a + Math.PI / 2;
-    for (const [j, sgn] of [[2 * k - 1, 1], [2 * k, -1]]) {
-      const cx = C[0] + ti[0] * 172 * sgn, cy = C[1] + ti[1] * 172 * sgn, key = BIOMES[j].key, ux = Math.cos(a), uy = Math.sin(a);
-      addPiece(M, VMath.blob(cx, cy, 290, 300, j * 7.1, rot, 68, 0.15), { zone:j, elev:0, h:72, style:key });
-      addPiece(M, VMath.blob(cx + ux * 50, cy + uy * 50, 165, 152, j * 7.1 + 3, rot, 44, 0.14), { zone:j, elev:1, h:18, style:key });
-      addPiece(M, VMath.blob(cx + ux * 114 - ti[0] * 50 * sgn, cy + uy * 114 - ti[1] * 50 * sgn, 76, 66, j * 7.1 + 5, rot, 32, 0.12), { zone:j, elev:2, h:14, style:key });
-      regions[j] = { x:cx, y:cy, R:295, ux, uy, ti, sgn }; M.zones.push({ i:j, b:BIOMES[j], x:cx, y:cy, R:295, rx:290, ry:300 });
-    }
-  }
-  // gates (seed seals) and world gateways, chained around the ring
-  for (let i = 1; i <= 12; i++) {
-    const R = regions[i], prev = i === 1 ? [HX, HY] : [regions[i - 1].x, regions[i - 1].y], prevR = i === 1 ? 330 : 205;
-    const gpos = i % 2 ? toward(prev, [R.x, R.y], prevR) : toward(prev, [R.x, R.y], 110), gzone = i === 1 ? 0 : i - 1;
-    const epos = toward([R.x, R.y], gpos, i % 2 ? 185 : 95);
+  // six islands along the road to the citadel, two worlds sharing each one
+  const HALF = { 1:[600, 2290], 2:[770, 1790], 3:[1520, 2070], 4:[1910, 2470], 5:[2600, 3020], 6:[3080, 2840], 7:[3370, 2170], 8:[3010, 1780], 9:[2350, 1460], 10:[1800, 1330], 11:[1080, 780], 12:[1650, 630] };
+  const regions = {}; for (let k = 1; k <= 6; k++) { const a = HALF[2 * k - 1], b = HALF[2 * k], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, d = Math.hypot(b[0] - a[0], b[1] - a[1]), f = 220 / d; HALF[2 * k - 1] = [mx + (a[0] - mx) * f * 2, my + (a[1] - my) * f * 2]; HALF[2 * k] = [mx + (b[0] - mx) * f * 2, my + (b[1] - my) * f * 2]; }
+  for (let k = 1; k <= 6; k++) { const a = HALF[2 * k - 1], b = HALF[2 * k], ax = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    for (const [j, c, sg] of [[2 * k - 1, a, 1], [2 * k, b, -1]]) { const key = BIOMES[j].key, ux = Math.cos(ax) * sg, uy = Math.sin(ax) * sg;
+      addPiece(M, VMath.blob(c[0], c[1], 335, 285, j * 7.1, ax, 72, 0.15), { zone:j, elev:0, h:72, style:key });
+      addPiece(M, VMath.blob(c[0] - ux * 40 - uy * 30, c[1] - uy * 40 + ux * 30, 172, 140, j * 7.1 + 3, ax, 44, 0.14), { zone:j, elev:1, h:18, style:key });
+      addPiece(M, VMath.blob(c[0] - ux * 125 + uy * 75, c[1] - uy * 125 - ux * 75, 82, 66, j * 7.1 + 5, ax, 32, 0.12), { zone:j, elev:2, h:14, style:key });
+      regions[j] = { x:c[0], y:c[1], R:300, rot:ax }; M.zones.push({ i:j, b:BIOMES[j], x:c[0], y:c[1], R:300, rx:335, ry:285 }); } }
+  // seed-seal gates and world gateways, chained along the road
+  const gates = [], entries = [];
+  for (let i = 1; i <= 12; i++) { const R = regions[i], prev = i === 1 ? [HX, HY] : [regions[i - 1].x, regions[i - 1].y];
+    const gd = i % 2 ? (i === 1 ? erad(HRX, HRY, 0, R.x - HX, R.y - HY) * 0.7 : erad(335, 285, regions[i - 1].rot, R.x - prev[0], R.y - prev[1]) * 0.68) : 85;
+    const gpos = toward(prev, [R.x, R.y], gd), gzone = i === 1 ? 0 : i - 1, epos = toward([R.x, R.y], gpos, i % 2 ? 170 : 80);
     const g = add({ kind:'gate', hour:HUB_HOUR(i), x:gpos[0], y:gpos[1], zone:gzone }), e = add({ kind:'world', world:i, x:epos[0], y:epos[1], zone:i });
-    gates[i] = g; entries[i] = e; link(i === 1 ? w1[5] : entries[i - 1], g); link(g, e);
-  }
-  link(entries[12], w1[1]);
-  // fortress stages (World 14)
+    gates[i] = g; entries[i] = e; link(i === 1 ? w1[5] : entries[i - 1], g); link(g, e); }
+  // the citadel's own stages (World 14), reached across the storm from Thunderprism Isle
   const fs = []; [150, 122, 94, 66, 38].forEach((deg, k) => { const [x, y] = P(deg, 100 * KC); fs.push(add({ kind:'stage', idx:78 + k, x, y, zone:13 })); });
-  fs.push(add({ kind:'stage', idx:83, x:CX, y:CY + 24 * KC, zone:13, boss:true }));
-  link(start, fs[0]); for (let k = 1; k < 6; k++) link(fs[k - 1], fs[k]);
+  fs.push(add({ kind:'stage', idx:83, x:CTX, y:CTY + 24 * KC, zone:13, boss:true }));
+  link(entries[12], fs[0]); for (let k = 1; k < 6; k++) link(fs[k - 1], fs[k]);
   { const [x, y] = P(-20, 130 * KC); link(fs[4], add({ kind:'secret', idx:SECRET_START + 13, x, y, zone:13, world:13 })); }
-  M.zones.push({ i:13, b:BIOMES[13], x:CX, y:CY, R:150 * KC });
-  // rocky outcrops around every world island's rim
-  for (let j = 1; j <= 12; j++) { const R = regions[j]; for (let k = 0; k < 12; k++) { const aa = Util.hash(j * 31 + k) * Math.PI * 2, x = R.x + Math.cos(aa) * 245, y = R.y + Math.sin(aa) * 252;
-    if (M.nodes.some(n => Util.dist(n.x, n.y, x, y) < 70 || n.links.some(q => VMath.segDist(x, y, n.x, n.y, M.nodes[q].x, M.nodes[q].y) < 40)) || M.zones.some(z => z.i !== j && z.i !== 13 && Util.dist(z.x, z.y, x, y) < 260)) continue;
+  M.zones.push({ i:13, b:BIOMES[13], x:CTX, y:CTY, R:150 * KC });
+  // rocky outcrops on each island's outer rim
+  for (let j = 1; j <= 12; j++) { const R = regions[j]; for (let k = 0; k < 9; k++) { const aa = Util.hash(j * 31 + k) * Math.PI * 2, rr = erad(335, 285, R.rot, Math.cos(aa), Math.sin(aa)) * 0.86, x = R.x + Math.cos(aa) * rr, y = R.y + Math.sin(aa) * rr;
+    if (M.nodes.some(n => Util.dist(n.x, n.y, x, y) < 70 || n.links.some(q => VMath.segDist(x, y, n.x, n.y, M.nodes[q].x, M.nodes[q].y) < 40)) || M.zones.some(z => z.i !== j && z.i !== 13 && Util.dist(z.x, z.y, x, y) < (Math.abs(z.i - j) === 1 && Math.ceil(z.i / 2) === Math.ceil(j / 2) ? 360 : 300))) continue;
     addPiece(M, VMath.rrect(x, y, 50 + Util.hash(k + j) * 26, 36 + Util.hash(k * 3 + j) * 16, 8, j * 13 + k, Util.hash(k * 7 + j) * 3), { zone:j, elev:1, h:22, style:BIOMES[j].key }); } }
-  // the great cliff wall ringing the whole sea, with waterfalls
-  M.walls = []; for (let k = 0; k < 40; k++) { const a0 = (k / 40) * Math.PI * 2 - 0.012, a1 = ((k + 1) / 40) * Math.PI * 2 + 0.012, pts = [], ri = r => 1555 + Math.sin(r * 5 + 1.3) * 22 + Math.sin(r * 13) * 9, ro = 1760;
-    for (let q = 0; q <= 8; q++) { const a = a0 + (a1 - a0) * q / 8; pts.push([CX + Math.cos(a) * ro, CY + Math.sin(a) * ro]); } for (let q = 8; q >= 0; q--) { const a = a0 + (a1 - a0) * q / 8; pts.push([CX + Math.cos(a) * ri(a), CY + Math.sin(a) * ri(a)]); }
-    const am = (a0 + a1) / 2, pc = addPiece(M, pts, { zone:255, elev:0, h:96, style:'cliffwall', noRaster:true, wall:true }); if (Math.sin(am) < -0.2 && k % 3 === 0) pc.fall = { x:CX + Math.cos(am) * ri(am), y:CY + Math.sin(am) * ri(am) }; M.walls.push(pc); }
-  finishVMap(M, { shallows:true, halo:false, bridgeStyle:undefined, boats:8, noBoat:(x, y) => Util.dist(x, y, CX, CY) < 520 || Util.dist(x, y, CX, CY) > 1480,
+  // cliffs and hills framing the whole sea (an irregular coastline, not a ring), with waterfalls in the north
+  const WCX = W / 2, WCY = H / 2, sup = (th, a, b, n) => { const c = Math.cos(th), s = Math.sin(th); return [WCX + a * Math.sign(c) * Math.pow(Math.abs(c), 2 / n), WCY + b * Math.sign(s) * Math.pow(Math.abs(s), 2 / n)]; };
+  const inner = th => { const k = 1 + Math.sin(th * 5 + 1.3) * 0.02 + Math.sin(th * 13) * 0.009 + Math.sin(th * 3 + 0.4) * 0.016; return sup(th, (W / 2 - 205) * k, (H / 2 - 195) * k, 4.5); }, outer = th => sup(th, W / 2 + 300, H / 2 + 300, 8);
+  M.wallIn = []; for (let q = 0; q < 240; q++) M.wallIn.push(inner(q / 240 * Math.PI * 2));
+  M.walls = []; for (let k = 0; k < 48; k++) { const a0 = (k / 48) * Math.PI * 2 - 0.01, a1 = ((k + 1) / 48) * Math.PI * 2 + 0.01, pts = [];
+    for (let q = 0; q <= 8; q++) pts.push(outer(a0 + (a1 - a0) * q / 8)); for (let q = 8; q >= 0; q--) pts.push(inner(a0 + (a1 - a0) * q / 8));
+    const am = (a0 + a1) / 2, pc = addPiece(M, pts, { zone:255, elev:0, h:96, style:'cliffwall', noRaster:true, wall:true }); if (Math.sin(am) < -0.55 && k % 3 === 0) { const f = inner(am); pc.fall = { x:f[0], y:f[1] }; } M.walls.push(pc); }
+  const inside = (x, y) => Math.pow(Math.abs(x - WCX) / (W / 2 - 290), 4.5) + Math.pow(Math.abs(y - WCY) / (H / 2 - 280), 4.5) < 1;
+  finishVMap(M, { shallows:true, halo:false, bridgeStyle:undefined, boats:8, noBoat:(x, y) => Util.dist(x, y, CTX, CTY) < 560 || !inside(x, y),
     padStyle:n => n.zone === 0 ? 'isleGrass' : n.zone === 13 ? 'fortress' : BIOMES[n.zone] ? BIOMES[n.zone].key : 'decor',
     decorate:(M, free) => {
       for (let i = 0; i <= 12; i++) { const z = M.zones.find(q => q.i === i), key = i ? BIOMES[i].key : 'meadow', R = z.R;
         if (i) { let best = null, bs = 0; for (let k = 0; k < 160; k++) { const a = Util.hash(i * 7 + k * 3.1) * Math.PI * 2, r = Util.hash(i * 5 + k * 1.7) * R * 0.7, lx = z.x + Math.cos(a) * r, ly = z.y + Math.sin(a) * r;
             if (M.zoneAt(lx, ly) !== i || !M.landAt(lx - 30, ly) || !M.landAt(lx + 30, ly) || !free(lx, ly, 34)) continue; const sc = Math.min(...M.nodes.map(n => Util.dist(n.x, n.y, lx, ly))); if (sc > bs) { bs = sc; best = [lx, ly]; } }
           if (best) M.landmarks.push({ x:best[0], y:best[1], b:key, zone:i }); }
-        let made = 0; for (let k = 0; k < 2400 && made < (i ? 125 : 105); k++) { const a = Util.hash(i * 977 + k * 13.1) * Math.PI * 2, r = Math.sqrt(Util.hash(i * 571 + k * 7.7)) * (i ? R : 410) * 0.97, px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.7);
+        let made = 0; for (let k = 0; k < 2600 && made < (i ? 135 : 105); k++) { const a = Util.hash(i * 977 + k * 13.1) * Math.PI * 2, r = Math.sqrt(Util.hash(i * 571 + k * 7.7)) * (i ? R * 1.12 : 410) * 0.97, px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.7);
           if (M.zoneAt(px, py) !== i || !free(px, py, 13) || M.props.some(p => Util.dist(px, py, p.x, p.y) < 13)) continue; M.props.push({ x:px, y:py, b:key, v:Util.hash(k * 3.3 + i), s:0.85 + Util.hash(k + i * 9) * 0.5, zone:i }); made++; }
         let hm = 0; for (let k = 0; k < 400 && hm < (i ? 2 : 3); k++) { const a = Util.hash(i * 41 + k * 3.3) * Math.PI * 2, r = 40 + Util.hash(k * 7.1 + i) * (i ? 200 : 320), px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.65);
           if (M.zoneAt(px, py) !== i || !free(px, py, 18) || M.props.some(p => Util.dist(px, py, p.x, p.y) < 22)) continue; M.props.push({ x:px, y:py, b:'house', v:Util.hash(k + i * 5), s:1, zone:i }); hm++; }
@@ -4882,8 +4882,8 @@ function buildKingdom() {
         for (let k = 0; k < 300 && fl < (i ? 2 : 3) && anchors.length; k++) { const n = anchors[k % anchors.length], a = k * 1.3, px = n.x + Math.cos(a) * (36 + k % 3 * 12), py = n.y + Math.sin(a) * 24 + 10;
           if (!free(px, py, 10) || M.zoneAt(px, py) !== i) continue; M.flowers.push({ x:px, y:py, line:FLOWER_LINES[(i * 3 + fl * 5) % FLOWER_LINES.length], hue:(i * 47 + fl * 120) % 360, said:-99, zone:i }); fl++; }
       }
-      { let wm = 0; const falls = (M.walls || []).filter(w => w.fall).map(w => w.fall); for (let k = 0; k < 3000 && wm < 300; k++) { const a = Util.hash(k * 3.71 + 0.3) * Math.PI * 2, r = 1600 + Util.hash(k * 5.13 + 0.7) * 145, px = CX + Math.cos(a) * r, py = CY + Math.sin(a) * r;
-          if (px < 10 || py < 10 || px > W - 10 || py > H - 10 || falls.some(f => Util.dist(px, py, f.x, f.y) < 46) || M.props.some(p => Util.dist(px, py, p.x, p.y) < 15)) continue; const v = Util.hash(k * 7.7); M.props.push({ x:px, y:py, b:'meadow', v:v < 0.8 ? v * 0.68 : 0.7 + (v - 0.8) * 1.5, s:0.95 + Util.hash(k * 1.9) * 0.6, zone:255 }); wm++; } }
+      { let wm = 0; const falls = (M.walls || []).filter(w => w.fall).map(w => w.fall); for (let k = 0; k < 4000 && wm < 360; k++) { const th = Util.hash(k * 3.71 + 0.3) * Math.PI * 2, f = 0.08 + Util.hash(k * 5.13 + 0.7) * 0.5, pi = inner(th), po = outer(th), px = pi[0] + (po[0] - pi[0]) * f, py = pi[1] + (po[1] - pi[1]) * f;
+          if (px < 10 || py < 10 || px > W - 10 || py > H - 10 || falls.some(q => Util.dist(px, py, q.x, q.y) < 46) || M.props.some(p => Util.dist(px, py, p.x, p.y) < 15)) continue; const v = Util.hash(k * 7.7); M.props.push({ x:px, y:py, b:'meadow', v:v < 0.8 ? v * 0.68 : 0.7 + (v - 0.8) * 1.5, s:0.95 + Util.hash(k * 1.9) * 0.6, zone:255 }); wm++; } }
     } });
   return M;
 }
@@ -6006,6 +6006,7 @@ class Game {
     if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h = Math.round(h * 60 + 360) % 360; const sat = d ? d / (1 - Math.abs(mx + mn - 1)) : 0;
     const S = Math.round(Math.max(0.72, sat) * 100), L = Math.round(Util.clamp((mx + mn) / 2, 0.44, 0.54) * 100), C = (1 - Math.abs(2 * L / 100 - 1)) * S / 100, X = C * (1 - Math.abs((h / 60) % 2 - 1)), m = L / 100 - C / 2;
     const [R, G, Bc] = h < 60 ? [C, X, 0] : h < 120 ? [X, C, 0] : h < 180 ? [0, C, X] : h < 240 ? [0, X, C] : h < 300 ? [X, 0, C] : [C, 0, X]; return '#' + [R, G, Bc].map(v => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join(''); }
+  isleName(z) { return ['HOME ISLE', 'FROSTCAVE ISLE', 'FROSTCAVE ISLE', 'SUNVINE ISLE', 'SUNVINE ISLE', 'TIDEFORGE ISLE', 'TIDEFORGE ISLE', 'SUGARMOON ISLE', 'SUGARMOON ISLE', 'SKYLINE ISLE', 'SKYLINE ISLE', 'THUNDERPRISM ISLE', 'THUNDERPRISM ISLE', 'MALAKOR\'S CITADEL'][z] || ''; }
   drawZoneRibbon(ctx, zb, t) {
     const e = Math.max(0, 3.2 - zb.t), out = Math.min(1, zb.t / 0.35), B = zb.name ? { name:zb.name, col:zb.col } : (BIOMES[zb.z] || BIOMES[0]), col = this.vivid(B.col || '#6fcf5a');
     const ein = Math.min(1, e / 0.45), back = 1 + 2.7 * Math.pow(ein - 1, 3) + 1.7 * Math.pow(ein - 1, 2), cy = 52 - (1 - out) * 36, w = 252 * Math.max(0.05, back), h = 30;
@@ -6023,7 +6024,7 @@ class Game {
         ctx.fillStyle = 'rgba(255,240,150,0.6)'; for (let k = 0; k < 10; k++) { const a = k * 0.628 + t * 0.8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 28, a, a + 0.3); ctx.fill(); }
         ctx.fillStyle = '#5a2a00'; ctx.beginPath(); ctx.arc(0, 1.5, 19, 0, 7); ctx.fill(); ctx.fillStyle = '#ffc93a'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill(); ctx.fillStyle = '#fff1a0'; ctx.beginPath(); ctx.arc(-4, -5, 8, 0, 7); ctx.fill(); ctx.fillStyle = '#ffd34d'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, 7); ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.stroke();
         const lab = zb.badge || (zb.z >= 14 ? '★' : String(zb.z + 1)); ctx.font = '900 17px "Trebuchet MS", "Arial Rounded MT Bold", Verdana, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#7a3a00'; ctx.lineWidth = 4; ctx.strokeText(lab, 0, 1); ctx.fillStyle = '#ffffff'; ctx.fillText(lab, 0, 1); ctx.restore(); }
-      ctx.font = '900 8px "Trebuchet MS", Verdana, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; const sub = zb.sub || (zb.z >= 14 ? 'A NEW REALM' : `WORLD ${zb.z + 1}`); ctx.strokeStyle = this.shade(col, -0.5); ctx.lineWidth = 3; ctx.strokeText(sub, 12, -h / 2); ctx.fillStyle = '#fff6c8'; ctx.fillText(sub, 12, -h / 2);
+      ctx.font = '900 8px "Trebuchet MS", Verdana, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; const sub = zb.sub || (zb.z >= 14 ? 'A NEW REALM' : `WORLD ${zb.z + 1}` + (OW.kind === 'surface' && this.isleName(zb.z) ? ' \u00b7 ' + this.isleName(zb.z) : '')); ctx.strokeStyle = this.shade(col, -0.5); ctx.lineWidth = 3; ctx.strokeText(sub, 12, -h / 2); ctx.fillStyle = '#fff6c8'; ctx.fillText(sub, 12, -h / 2);
       const name = [...B.name]; ctx.font = '900 14px "Trebuchet MS", "Arial Rounded MT Bold", Verdana, sans-serif'; const ws = name.map(c => ctx.measureText(c).width), tot = ws.reduce((a, b) => a + b, 0) * 1.04, sc2 = Math.min(1, (w - 64) / tot); let px = 12 - tot * sc2 / 2;
       ctx.textAlign = 'left'; ctx.lineWidth = 3.5; ctx.strokeStyle = this.shade(col, -0.55); const ga = ctx.globalAlpha;
       name.forEach((c, i) => { const k = Math.max(0, Math.min(1, (e - 0.3 - i * 0.03) / 0.35)); if (k > 0) { const by = (1 - k) * -16 - Math.sin(k * Math.PI) * 5 + Math.sin(t * 5 + i * 0.6) * 0.8 * k; ctx.save(); ctx.translate(px, 3 + by); ctx.scale(sc2, sc2); ctx.globalAlpha = ga * k; ctx.strokeText(c, 0, 0); ctx.fillStyle = '#ffffff'; ctx.fillText(c, 0, 0); ctx.restore(); } px += ws[i] * 1.04 * sc2; });
@@ -6114,7 +6115,7 @@ class Game {
   introKey() { return OW.kind === 'surface' ? 'surface' : OW.isWorld ? 'w' + OW.world : OW.kind; }
   introText(key) {
     const T = {
-      surface:{ v:'MWAHAHA! Every island in this kingdom runs on MY time now!', n:['The Clockface Kingdom: twelve lands ticking around one great clock.', 'Malakor stole the Core Gears, and time itself is coming loose!', 'Gather Wonder Seeds, mend the islands and break his barrier, Pip!'] },
+      surface:{ v:'MWAHAHA! Every island in this kingdom runs on MY time now!', n:['Malakor stole the Core Gears and hid inside his storm citadel...', 'Between him and home lie six islands: ice, dunes, tides, sweets and sky.', 'And it all begins here, on a quiet meadow. Your journey starts now, Pip!'] },
       w1:{ v:'Let\'s put this whole island on ice... forever!', n:['Frostbite Gearworks: snow falls UP when the clocks hiccup.', 'Follow the frozen path and keep those gears turning!'] },
       w2:{ v:'Shh... the mushrooms are listening. And they work for ME!', n:['Whispering Fungus Caverns: glowing caps light the dark.', 'Listen closely. The walls remember every footstep.'] },
       w3:{ v:'Your shadow is late, courier! I moved the sun!', n:['Sundial Dunes: the great sundial has stopped turning.', 'Without it, the sands drift backward. Fix the hours!'] },
@@ -6135,8 +6136,7 @@ class Game {
     const s = this.save, key = this.introKey(), mp = this.mapPos; s.introSeen = s.introSeen || {}; s.introSeen[key] = 1; this.writeSave(); if (!mp) return;
     const pts = []; let boss, nodes, title, bossH = 90;
     if (OW.kind === 'surface') { boss = { x:OW.cx, y:OW.cy + 50 }; bossH = 130; pts.push({ x:OW.cx, y:OW.cy + 60, z:0.68 });
-      const zs = OW.zones.filter(z => z.i >= 1 && z.i <= 12).map(z => { const a = (Math.atan2(z.y - OW.cy, z.x - OW.cx) + Math.PI * 2.5) % (Math.PI * 2); return { z, k:(a - Math.PI - 0.05 + Math.PI * 4) % (Math.PI * 2) }; }).sort((a, b) => a.k - b.k);
-      for (const q of zs) pts.push({ x:q.z.x, y:q.z.y, z:0.92 });
+      for (let i = 12; i >= 1; i--) { const z = OW.zones.find(q => q.i === i); if (z) pts.push({ x:z.x, y:z.y, z:0.95 }); }
       title = { name:'THE CLOCKFACE KINGDOM', col:'#9a6aff', sub:'WELCOME TO', badge:'★' }; nodes = OW.nodes.filter(n => n.kind === 'gate' || n.kind === 'world');
     } else { const st = OW.nodes.filter(n => n.kind === 'stage').sort((a, b) => b.idx - a.idx); if (!st.length) return; boss = { x:st[0].x, y:st[0].y };
       pts.push({ x:st[0].x, y:st[0].y + 20, z:1.08 }); for (const n of st.slice(1)) pts.push({ x:n.x, y:n.y, z:1.0 }); nodes = st;
@@ -7526,7 +7526,7 @@ class Game {
     if (k === 'surface') {
       const cx = OW.cx - cam.x, cy = OW.cy - cam.y, g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 1500);
       g.addColorStop(0, '#140838'); g.addColorStop(0.15, '#1a2486'); g.addColorStop(0.27, '#1a64d0'); g.addColorStop(0.55, '#1e9ce2'); g.addColorStop(1, '#40c8f2'); ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-      if (OW.walls) { ctx.fillStyle = '#62ac54'; ctx.beginPath(); ctx.rect(0, 0, VW, VH); ctx.arc(cx, cy, 1700, 0, Math.PI * 2, true); ctx.fill('evenodd'); }
+      if (OW.walls) { ctx.fillStyle = '#62ac54'; ctx.beginPath(); ctx.rect(0, 0, VW, VH); if (OW.wallIn) { OW.wallIn.forEach(([x, y], i) => i ? ctx.lineTo(x - cam.x, y - cam.y) : ctx.moveTo(x - cam.x, y - cam.y)); ctx.closePath(); } ctx.fill('evenodd'); }
       ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1.2;
       for (let y = -((cam.y % 26) + 26); y < VH + 26; y += 26) { ctx.beginPath(); for (let x = 0; x <= VW; x += 12) { const wy = y + Math.sin((x + cam.x) * 0.035 + t * 1.3 + (y + cam.y) * 0.13) * 3; if (x) ctx.lineTo(x, wy); else ctx.moveTo(x, wy); } ctx.stroke(); }
       this.drawWaterHQ(ctx, cam, t);
@@ -7650,7 +7650,7 @@ class Game {
     const key = OW.kind + RS + ':' + Math.round(mw);
     if (!OW.ovCv || OW.ovKey !== key) { const c = Art.mk(Math.max(1, Math.ceil(mw * RS)), Math.max(1, Math.ceil(mh * RS))), x = c.getContext('2d'), cx0 = OW.cx || OW.w / 2, cy0 = OW.cy || OW.h / 2; x.scale(RS * sc, RS * sc);
       const g = x.createRadialGradient(cx0, cy0, 0, cx0, cy0, OW.w * 0.72); g.addColorStop(0, OW.kind === 'surface' ? '#160a40' : '#0e4a7a'); g.addColorStop(0.2, OW.kind === 'surface' ? '#1c46c4' : '#0e4a7a'); g.addColorStop(1, OW.kind === 'surface' ? '#3a86ee' : '#06203e'); x.fillStyle = g; x.fillRect(0, 0, OW.w, OW.h);
-      for (const p of OW.pieces) { const S2 = VSTYLE[p.style] || VSTYLE.meadow; if (p.halo) { x.strokeStyle = 'rgba(255,255,255,0.5)'; x.lineWidth = 14; x.stroke(p.path); } x.fillStyle = S2.side2; x.save(); x.translate(0, p.h * 0.7); x.fill(p.path); x.restore(); x.fillStyle = S2.top; x.fill(p.path); }
+      for (const p of OW.pieces) { const S2 = VSTYLE[p.style] || VSTYLE.meadow; if (p.halo) { x.strokeStyle = 'rgba(255,255,255,0.5)'; x.lineWidth = 14; x.stroke(p.path); } if (!p.wall) { x.fillStyle = S2.side2; x.save(); x.translate(0, p.h * 0.7); x.fill(p.path); x.restore(); } x.fillStyle = S2.top; x.fill(p.path); }
       OW.ovCv = c; OW.ovKey = key; }
     ctx.imageSmoothingEnabled = true; ctx.drawImage(OW.ovCv, ox, oy, mw, mh); ctx.imageSmoothingEnabled = false;
     if (OW.kind === 'surface' && !this.regionOpen(13)) { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(ox + OW.cx * sc, oy + OW.cy * sc, 238 * sc * (OW.core || 1), 205 * sc * (OW.core || 1), 0, 0, 7); ctx.stroke(); }
@@ -7664,7 +7664,7 @@ class Game {
   migrateSave() {
     const s = this.save;
     if (s.seedsV !== 1) { s.seeds = s.seeds || {}; for (const st of STAGES) if (s.cleared[st.id]) s.seeds[st.id] = this.stageSeedMax(st) === 2 ? 3 : 1; s.seedsV = 1; }
-    if (s.mapV !== 7) { s.mapV = 7; if ((s.mapRealm || 'surface') === 'surface') { delete s.mapX; delete s.mapY; } s.mapNode = 0; }
+    if (s.mapV !== 8) { s.mapV = 8; if (s.introSeen) delete s.introSeen.surface; if ((s.mapRealm || 'surface') === 'surface') { delete s.mapX; delete s.mapY; } s.mapNode = 0; }
     s.rocks = s.rocks || {}; s.upgrades.satchel = s.upgrades.satchel || 0;
   }
   drawStageSeeds(ctx, st, x, y, sc) {
@@ -8241,7 +8241,7 @@ class Game {
     else if (k === 'sky') { gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#8ab4f0'); gr.addColorStop(1, '#ffe0f0'); }
     else { gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0e4a7a'); gr.addColorStop(1, '#06203e'); }
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    if (k === 'surface' && OW.walls) { const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#5aa850'); lg.addColorStop(1, '#78c060'); g.fillStyle = lg; g.beginPath(); g.rect(0, 0, w, h); g.arc(OW.cx - T.x0, OW.cy - T.y0, 1700, 0, Math.PI * 2, true); g.fill('evenodd'); }
+    if (k === 'surface' && OW.walls) { const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#5aa850'); lg.addColorStop(1, '#78c060'); g.fillStyle = lg; g.beginPath(); g.rect(0, 0, w, h); if (OW.wallIn) { OW.wallIn.forEach(([x, y], i) => i ? g.lineTo(x - T.x0, y - T.y0) : g.moveTo(x - T.x0, y - T.y0)); g.closePath(); } g.fill('evenodd'); }
     const water = k === 'surface' || (OW.isWorld && WATER_WORLDS.includes(BIOMES[OW.world].key));
     g.strokeStyle = k === 'sky' ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'; g.lineWidth = 1.2;
     for (let y = -((T.y0 % 26) + 26); y < h + 26; y += 26) { g.beginPath(); for (let x = 0; x <= w; x += 12) { const wy = y + Math.sin((x + T.x0) * 0.035 + t * 1.3 + (y + T.y0) * 0.13) * 3; if (x) g.lineTo(x, wy); else g.moveTo(x, wy); } g.stroke(); }
