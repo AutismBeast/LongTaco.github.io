@@ -4728,6 +4728,7 @@ const VSTYLE = {
   isleYellow:{ top:'#ffd84a', top2:'#ffea90', side:'#e0b060', side2:'#a87e38', rim:'#fff8c8', decal:'stripe' },
   rim:{ top:'#f6e2a8', top2:'#fff4cc', side:'#d8b878', side2:'#a87e48', rim:'#ffffff', decal:'none' },
   fortress:{ top:'#2e2448', top2:'#463a6c', side:'#1a1230', side2:'#06030e', rim:'#b070ff', decal:'crack' },
+  cliffwall:{ top:'#6cc05a', top2:'#a2dc7e', side:'#b8946a', side2:'#5e4430', rim:'#a8e080', decal:'tuft', dk:'rgba(40,110,30,0.5)' },
   decor:{ top:'#7ad06a', top2:'#a6e48c', side:'#d8b878', side2:'#a87e48', rim:'#ffffff', decal:'tuft', dk:'rgba(40,110,40,0.5)' },
   skyisle:{ top:'#9ee08a', top2:'#cff4b6', side:'#a090c0', side2:'#4e3e74', rim:'#ffffff', decal:'flower' },
   reef:{ top:'#ead8a8', top2:'#fbefcf', side:'#7a5a8a', side2:'#2e1e4a', rim:'#ffe0f0', decal:'coral' },
@@ -4758,7 +4759,7 @@ function vmapLinker(M) { const add = o => { o.id = M.nodes.length; o.links = [];
 function finishVMap(M, opt) {
   const C = 8, GW = Math.ceil(M.w / C), GH = Math.ceil(M.h / C); M.C = C; M.GW = GW; M.GH = GH;
   const grid = new Uint8Array(GW * GH).fill(255), gel = new Int8Array(GW * GH).fill(-1);
-  const raster = p => { const gx0 = Math.max(0, Math.floor(p.x0 / C)), gx1 = Math.min(GW - 1, Math.ceil(p.x1 / C)), gy0 = Math.max(0, Math.floor(p.y0 / C)), gy1 = Math.min(GH - 1, Math.ceil(p.y1 / C));
+  const raster = p => { if (p.noRaster) return; const gx0 = Math.max(0, Math.floor(p.x0 / C)), gx1 = Math.min(GW - 1, Math.ceil(p.x1 / C)), gy0 = Math.max(0, Math.floor(p.y0 / C)), gy1 = Math.min(GH - 1, Math.ceil(p.y1 / C));
     for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) { const i = gy * GW + gx; if (gel[i] > p.elev) continue; if (VMath.inPoly(p.pts, gx * C + C / 2, gy * C + C / 2)) { grid[i] = p.zone; gel[i] = p.elev; } } };
   M.pieces.forEach(raster);
   const cell = (x, y) => { const gx = Math.floor(x / C), gy = Math.floor(y / C); return gx >= 0 && gy >= 0 && gx < GW && gy < GH ? gy * GW + gx : -1; }, landC = (x, y) => { const i = cell(x, y); return i >= 0 && grid[i] !== 255; };
@@ -4808,75 +4809,81 @@ const HUB_HOURS = { 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8, 9:9, 10:10, 11:11, 1
 const WORLD_SIZE = { 4:[1.25, 1045], 6:[1.25, 1045], 10:[1.25, 1045], 7:[0.6, 835] };
 for (let i = 1; i <= 12; i++) HUB_HOUR_INV[HUB_HOUR(i)] = i;
 function buildKingdom() {
-  const W = 3000, H = 3000, CX = 1500, CY = 1500, M = makeVMap('surface', W, H), [add, link] = vmapLinker(M);
-  M.cx = CX; M.cy = CY;
+  const W = 3400, H = 3400, CX = 1700, CY = 1700, KC = 1.35, KS = 1.27, M = makeVMap('surface', W, H), [add, link] = vmapLinker(M);
+  M.cx = CX; M.cy = CY; M.core = KC;
   const P = (deg, r) => [CX + Math.cos(deg * Math.PI / 180) * r, CY + Math.sin(deg * Math.PI / 180) * r];
   const toward = (a, b, d) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [a[0] + dx / l * d, a[1] + dy / l * d]; };
   // island 1 of 8: Malakor's fortress at the heart of the sea
-  addPiece(M, VMath.blob(CX, CY, 160, 135, 991, 0, 48, 0.12), { zone:13, elev:0, h:46, style:'fortress' });
+  addPiece(M, VMath.blob(CX, CY, 160 * KC, 135 * KC, 991, 0, 56, 0.12), { zone:13, elev:0, h:70, style:'fortress' });
   // island 2 of 8: the hub (World 1)
-  const HX = CX, HY = CY + 920, HRX = 330, HRY = 230;
-  addPiece(M, VMath.blob(HX, HY, HRX, HRY, 11, 0, 64, 0.13), { zone:0, elev:0, h:40, style:'isleGrass' });
-  addPiece(M, VMath.blob(HX - 60, HY + 30, 190, 120, 12, 0, 44, 0.12), { zone:0, elev:1, h:12, style:'isleGrass' });
-  addPiece(M, VMath.blob(HX + 150, HY - 70, 110, 70, 13, 0.3, 36, 0.12), { zone:0, elev:1, h:14, style:'isleSand' });
-  addPiece(M, VMath.blob(HX - 200, HY - 80, 80, 55, 14, -0.3, 30, 0.12), { zone:0, elev:2, h:10, style:'islePink' });
-  M.zones.push({ i:0, b:BIOMES[0], x:HX, y:HY, R:300, rx:HRX, ry:HRY });
-  const start = add({ kind:'start', x:HX, y:HY - 175, zone:0 });
-  const w1 = [[HX - 200, HY - 120], [HX - 250, HY + 30], [HX - 120, HY + 140], [HX + 60, HY + 160], [HX + 220, HY + 70], [HX + 180, HY - 90]].map(([x, y], k) => add({ kind:'stage', idx:k, x, y, zone:0, boss:k === 5 }));
+  const HX = CX, HY = CY + 1130, HRX = 420, HRY = 292;
+  addPiece(M, VMath.blob(HX, HY, HRX, HRY, 11, 0, 72, 0.13), { zone:0, elev:0, h:66, style:'isleGrass' });
+  addPiece(M, VMath.blob(HX - 76, HY + 38, 240, 152, 12, 0, 48, 0.12), { zone:0, elev:1, h:16, style:'isleGrass' });
+  addPiece(M, VMath.blob(HX + 190, HY - 89, 140, 89, 13, 0.3, 40, 0.12), { zone:0, elev:1, h:18, style:'isleSand' });
+  addPiece(M, VMath.blob(HX - 254, HY - 102, 102, 70, 14, -0.3, 34, 0.12), { zone:0, elev:2, h:13, style:'islePink' });
+  M.zones.push({ i:0, b:BIOMES[0], x:HX, y:HY, R:381, rx:HRX, ry:HRY });
+  const start = add({ kind:'start', x:HX, y:HY - 222, zone:0 });
+  const w1 = [[HX - 254, HY - 152], [HX - 318, HY + 38], [HX - 152, HY + 178], [HX + 76, HY + 203], [HX + 279, HY + 89], [HX + 229, HY - 114]].map(([x, y], k) => add({ kind:'stage', idx:k, x, y, zone:0, boss:k === 5 }));
   link(start, w1[0]); for (let k = 1; k < 6; k++) link(w1[k - 1], w1[k]);
-  link(start, add({ kind:'shop', shop:0, x:HX - 95, y:HY - 95, zone:0, anchor:0 }));
-  link(start, add({ kind:'trial', idx:TRIAL_START, x:HX + 70, y:HY - 95, zone:0, anchor:3 }));
-  link(start, add({ kind:'vault', idx:BONUS_STAGE, x:HX - 10, y:HY + 20, zone:0 }));
-  link(w1[1], add({ kind:'house', x:HX - 290, y:HY + 130, zone:0, anchor:2 }));
-  link(w1[3], add({ kind:'secret', idx:SECRET_START, x:HX + 160, y:HY + 170, zone:0, world:0 }));
+  link(start, add({ kind:'shop', shop:0, x:HX - 121, y:HY - 121, zone:0, anchor:0 }));
+  link(start, add({ kind:'trial', idx:TRIAL_START, x:HX + 89, y:HY - 121, zone:0, anchor:3 }));
+  link(start, add({ kind:'vault', idx:BONUS_STAGE, x:HX - 13, y:HY + 25, zone:0 }));
+  link(w1[1], add({ kind:'house', x:HX - 368, y:HY + 150, zone:0, anchor:2 }));
+  link(w1[3], add({ kind:'secret', idx:SECRET_START, x:HX + 203, y:HY + 200, zone:0, world:0 }));
   // islands 3-8: six great islands ringing the sea, two worlds on each
   const regions = {}, gates = [], entries = [];
   for (let k = 1; k <= 6; k++) {
-    const deg = 90 - k * 360 / 7, a = deg * Math.PI / 180, C = P(deg, 1000), ti = [-Math.sin(a), Math.cos(a)], rot = a + Math.PI / 2;
+    const deg = 90 - k * 360 / 7, a = deg * Math.PI / 180, C = P(deg, 1130), ti = [-Math.sin(a), Math.cos(a)], rot = a + Math.PI / 2;
     for (const [j, sgn] of [[2 * k - 1, 1], [2 * k, -1]]) {
-      const cx = C[0] + ti[0] * 135 * sgn, cy = C[1] + ti[1] * 135 * sgn, key = BIOMES[j].key, ux = Math.cos(a), uy = Math.sin(a);
-      addPiece(M, VMath.blob(cx, cy, 228, 236, j * 7.1, rot, 60, 0.15), { zone:j, elev:0, h:42, style:key });
-      addPiece(M, VMath.blob(cx + ux * 40, cy + uy * 40, 130, 120, j * 7.1 + 3, rot, 40, 0.14), { zone:j, elev:1, h:14, style:key });
-      addPiece(M, VMath.blob(cx + ux * 90 - ti[0] * 40 * sgn, cy + uy * 90 - ti[1] * 40 * sgn, 60, 52, j * 7.1 + 5, rot, 30, 0.12), { zone:j, elev:2, h:11, style:key });
-      regions[j] = { x:cx, y:cy, R:230, ux, uy, ti, sgn }; M.zones.push({ i:j, b:BIOMES[j], x:cx, y:cy, R:230, rx:228, ry:236 });
+      const cx = C[0] + ti[0] * 172 * sgn, cy = C[1] + ti[1] * 172 * sgn, key = BIOMES[j].key, ux = Math.cos(a), uy = Math.sin(a);
+      addPiece(M, VMath.blob(cx, cy, 290, 300, j * 7.1, rot, 68, 0.15), { zone:j, elev:0, h:72, style:key });
+      addPiece(M, VMath.blob(cx + ux * 50, cy + uy * 50, 165, 152, j * 7.1 + 3, rot, 44, 0.14), { zone:j, elev:1, h:18, style:key });
+      addPiece(M, VMath.blob(cx + ux * 114 - ti[0] * 50 * sgn, cy + uy * 114 - ti[1] * 50 * sgn, 76, 66, j * 7.1 + 5, rot, 32, 0.12), { zone:j, elev:2, h:14, style:key });
+      regions[j] = { x:cx, y:cy, R:295, ux, uy, ti, sgn }; M.zones.push({ i:j, b:BIOMES[j], x:cx, y:cy, R:295, rx:290, ry:300 });
     }
   }
   // gates (seed seals) and world gateways, chained around the ring
   for (let i = 1; i <= 12; i++) {
-    const R = regions[i], prev = i === 1 ? [HX, HY] : [regions[i - 1].x, regions[i - 1].y], prevR = i === 1 ? HRX * 0.86 : 150;
-    const gpos = i % 2 ? toward(prev, [R.x, R.y], prevR) : toward(prev, [R.x, R.y], 80), gzone = i === 1 ? 0 : i - 1;
-    const epos = toward([R.x, R.y], gpos, i % 2 ? 140 : 70);
+    const R = regions[i], prev = i === 1 ? [HX, HY] : [regions[i - 1].x, regions[i - 1].y], prevR = i === 1 ? 330 : 205;
+    const gpos = i % 2 ? toward(prev, [R.x, R.y], prevR) : toward(prev, [R.x, R.y], 110), gzone = i === 1 ? 0 : i - 1;
+    const epos = toward([R.x, R.y], gpos, i % 2 ? 185 : 95);
     const g = add({ kind:'gate', hour:HUB_HOUR(i), x:gpos[0], y:gpos[1], zone:gzone }), e = add({ kind:'world', world:i, x:epos[0], y:epos[1], zone:i });
     gates[i] = g; entries[i] = e; link(i === 1 ? w1[5] : entries[i - 1], g); link(g, e);
   }
   link(entries[12], w1[1]);
   // fortress stages (World 14)
-  const fs = []; [150, 122, 94, 66, 38].forEach((deg, k) => { const [x, y] = P(deg, 100); fs.push(add({ kind:'stage', idx:78 + k, x, y, zone:13 })); });
-  fs.push(add({ kind:'stage', idx:83, x:CX, y:CY + 24, zone:13, boss:true }));
+  const fs = []; [150, 122, 94, 66, 38].forEach((deg, k) => { const [x, y] = P(deg, 100 * KC); fs.push(add({ kind:'stage', idx:78 + k, x, y, zone:13 })); });
+  fs.push(add({ kind:'stage', idx:83, x:CX, y:CY + 24 * KC, zone:13, boss:true }));
   link(start, fs[0]); for (let k = 1; k < 6; k++) link(fs[k - 1], fs[k]);
-  { const [x, y] = P(-20, 130); link(fs[4], add({ kind:'secret', idx:SECRET_START + 13, x, y, zone:13, world:13 })); }
-  M.zones.push({ i:13, b:BIOMES[13], x:CX, y:CY, R:150 });
+  { const [x, y] = P(-20, 130 * KC); link(fs[4], add({ kind:'secret', idx:SECRET_START + 13, x, y, zone:13, world:13 })); }
+  M.zones.push({ i:13, b:BIOMES[13], x:CX, y:CY, R:150 * KC });
   // rocky outcrops around every world island's rim
-  for (let j = 1; j <= 12; j++) { const R = regions[j]; for (let k = 0; k < 9; k++) { const aa = Util.hash(j * 31 + k) * Math.PI * 2, x = R.x + Math.cos(aa) * 190, y = R.y + Math.sin(aa) * 196;
-    if (M.nodes.some(n => Util.dist(n.x, n.y, x, y) < 70 || n.links.some(q => VMath.segDist(x, y, n.x, n.y, M.nodes[q].x, M.nodes[q].y) < 40)) || M.zones.some(z => z.i !== j && z.i !== 13 && Util.dist(z.x, z.y, x, y) < 200)) continue;
-    addPiece(M, VMath.rrect(x, y, 50 + Util.hash(k + j) * 26, 36 + Util.hash(k * 3 + j) * 16, 8, j * 13 + k, Util.hash(k * 7 + j) * 3), { zone:j, elev:1, h:16, style:BIOMES[j].key }); } }
-  finishVMap(M, { shallows:true, halo:false, bridgeStyle:undefined, boats:8, noBoat:(x, y) => Util.dist(x, y, CX, CY) < 420,
+  for (let j = 1; j <= 12; j++) { const R = regions[j]; for (let k = 0; k < 12; k++) { const aa = Util.hash(j * 31 + k) * Math.PI * 2, x = R.x + Math.cos(aa) * 245, y = R.y + Math.sin(aa) * 252;
+    if (M.nodes.some(n => Util.dist(n.x, n.y, x, y) < 70 || n.links.some(q => VMath.segDist(x, y, n.x, n.y, M.nodes[q].x, M.nodes[q].y) < 40)) || M.zones.some(z => z.i !== j && z.i !== 13 && Util.dist(z.x, z.y, x, y) < 260)) continue;
+    addPiece(M, VMath.rrect(x, y, 50 + Util.hash(k + j) * 26, 36 + Util.hash(k * 3 + j) * 16, 8, j * 13 + k, Util.hash(k * 7 + j) * 3), { zone:j, elev:1, h:22, style:BIOMES[j].key }); } }
+  // the great cliff wall ringing the whole sea, with waterfalls
+  M.walls = []; for (let k = 0; k < 40; k++) { const a0 = (k / 40) * Math.PI * 2 - 0.012, a1 = ((k + 1) / 40) * Math.PI * 2 + 0.012, pts = [], ri = r => 1555 + Math.sin(r * 5 + 1.3) * 22 + Math.sin(r * 13) * 9, ro = 1760;
+    for (let q = 0; q <= 8; q++) { const a = a0 + (a1 - a0) * q / 8; pts.push([CX + Math.cos(a) * ro, CY + Math.sin(a) * ro]); } for (let q = 8; q >= 0; q--) { const a = a0 + (a1 - a0) * q / 8; pts.push([CX + Math.cos(a) * ri(a), CY + Math.sin(a) * ri(a)]); }
+    const am = (a0 + a1) / 2, pc = addPiece(M, pts, { zone:255, elev:0, h:96, style:'cliffwall', noRaster:true, wall:true }); if (Math.sin(am) < -0.2 && k % 3 === 0) pc.fall = { x:CX + Math.cos(am) * ri(am), y:CY + Math.sin(am) * ri(am) }; M.walls.push(pc); }
+  finishVMap(M, { shallows:true, halo:false, bridgeStyle:undefined, boats:8, noBoat:(x, y) => Util.dist(x, y, CX, CY) < 520 || Util.dist(x, y, CX, CY) > 1480,
     padStyle:n => n.zone === 0 ? 'isleGrass' : n.zone === 13 ? 'fortress' : BIOMES[n.zone] ? BIOMES[n.zone].key : 'decor',
     decorate:(M, free) => {
       for (let i = 0; i <= 12; i++) { const z = M.zones.find(q => q.i === i), key = i ? BIOMES[i].key : 'meadow', R = z.R;
         if (i) { let best = null, bs = 0; for (let k = 0; k < 160; k++) { const a = Util.hash(i * 7 + k * 3.1) * Math.PI * 2, r = Util.hash(i * 5 + k * 1.7) * R * 0.7, lx = z.x + Math.cos(a) * r, ly = z.y + Math.sin(a) * r;
             if (M.zoneAt(lx, ly) !== i || !M.landAt(lx - 30, ly) || !M.landAt(lx + 30, ly) || !free(lx, ly, 34)) continue; const sc = Math.min(...M.nodes.map(n => Util.dist(n.x, n.y, lx, ly))); if (sc > bs) { bs = sc; best = [lx, ly]; } }
           if (best) M.landmarks.push({ x:best[0], y:best[1], b:key, zone:i }); }
-        let made = 0; for (let k = 0; k < 1500 && made < (i ? 85 : 70); k++) { const a = Util.hash(i * 977 + k * 13.1) * Math.PI * 2, r = Math.sqrt(Util.hash(i * 571 + k * 7.7)) * (i ? R : 320) * 0.97, px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.7);
+        let made = 0; for (let k = 0; k < 2400 && made < (i ? 125 : 105); k++) { const a = Util.hash(i * 977 + k * 13.1) * Math.PI * 2, r = Math.sqrt(Util.hash(i * 571 + k * 7.7)) * (i ? R : 410) * 0.97, px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.7);
           if (M.zoneAt(px, py) !== i || !free(px, py, 13) || M.props.some(p => Util.dist(px, py, p.x, p.y) < 13)) continue; M.props.push({ x:px, y:py, b:key, v:Util.hash(k * 3.3 + i), s:0.85 + Util.hash(k + i * 9) * 0.5, zone:i }); made++; }
-        let hm = 0; for (let k = 0; k < 400 && hm < (i ? 2 : 3); k++) { const a = Util.hash(i * 41 + k * 3.3) * Math.PI * 2, r = 40 + Util.hash(k * 7.1 + i) * (i ? 150 : 250), px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.65);
+        let hm = 0; for (let k = 0; k < 400 && hm < (i ? 2 : 3); k++) { const a = Util.hash(i * 41 + k * 3.3) * Math.PI * 2, r = 40 + Util.hash(k * 7.1 + i) * (i ? 200 : 320), px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.65);
           if (M.zoneAt(px, py) !== i || !free(px, py, 18) || M.props.some(p => Util.dist(px, py, p.x, p.y) < 22)) continue; M.props.push({ x:px, y:py, b:'house', v:Util.hash(k + i * 5), s:1, zone:i }); hm++; }
-        let cc = 0; for (let k = 0; k < 400 && cc < 3; k++) { const a = Util.hash(i * 211 + k * 5.3) * Math.PI * 2, r = 40 + Util.hash(i * 97 + k * 3.1) * (i ? 160 : 260), px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.65);
+        let cc = 0; for (let k = 0; k < 400 && cc < 3; k++) { const a = Util.hash(i * 211 + k * 5.3) * Math.PI * 2, r = 40 + Util.hash(i * 97 + k * 3.1) * (i ? 210 : 330), px = z.x + Math.cos(a) * r, py = z.y + Math.sin(a) * r * (i ? 1 : 0.65);
           if (M.zoneAt(px, py) !== i || !free(px, py, 16)) continue; M.caches.push({ id:`k${i}_${cc}`, x:px, y:py, zone:i }); cc++; }
         let fl = 0; const anchors = M.nodes.filter(n => n.zone === i && (n.kind === 'world' || n.kind === 'stage' || n.kind === 'gate'));
         for (let k = 0; k < 300 && fl < (i ? 2 : 3) && anchors.length; k++) { const n = anchors[k % anchors.length], a = k * 1.3, px = n.x + Math.cos(a) * (36 + k % 3 * 12), py = n.y + Math.sin(a) * 24 + 10;
           if (!free(px, py, 10) || M.zoneAt(px, py) !== i) continue; M.flowers.push({ x:px, y:py, line:FLOWER_LINES[(i * 3 + fl * 5) % FLOWER_LINES.length], hue:(i * 47 + fl * 120) % 360, said:-99, zone:i }); fl++; }
       }
+      { let wm = 0; const falls = (M.walls || []).filter(w => w.fall).map(w => w.fall); for (let k = 0; k < 3000 && wm < 300; k++) { const a = Util.hash(k * 3.71 + 0.3) * Math.PI * 2, r = 1600 + Util.hash(k * 5.13 + 0.7) * 145, px = CX + Math.cos(a) * r, py = CY + Math.sin(a) * r;
+          if (px < 10 || py < 10 || px > W - 10 || py > H - 10 || falls.some(f => Util.dist(px, py, f.x, f.y) < 46) || M.props.some(p => Util.dist(px, py, p.x, p.y) < 15)) continue; const v = Util.hash(k * 7.7); M.props.push({ x:px, y:py, b:'meadow', v:v < 0.8 ? v * 0.68 : 0.7 + (v - 0.8) * 1.5, s:0.95 + Util.hash(k * 1.9) * 0.6, zone:255 }); wm++; } }
     } });
   return M;
 }
@@ -6056,7 +6063,7 @@ class Game {
     if (T3) { this.drawSkyBand(ctx, T3, cam, t); ctx.save(); ctx = this.tiltGround(T3); }
     else { this.viewRect = null; this.drawVBackground(ctx, cam, t); ctx.save(); ctx.translate(-Math.round(cam.x), -Math.round(cam.y)); }
     this.drawVTerrain(ctx, cam, t, false); this.drawCloudShadows(ctx, cam, t);
-    if (OW.kind === 'surface') this.drawBarrier(ctx, t);
+    if (OW.kind === 'surface') { const k9 = OW.core || 1; ctx.save(); ctx.translate(OW.cx, OW.cy); ctx.scale(k9, k9); ctx.translate(-OW.cx, -OW.cy); this.drawBarrier(ctx, t); ctx.restore(); }
     const VR = this.viewRect, vis = VR ? (x, y, m) => x > VR.x0 - m && x < VR.x1 + m && y > VR.y0 - m && y < VR.y1 + m : (x, y, m) => x > cam.x - m && x < cam.x + VW + m && y > cam.y - m && y < cam.y + VH + m;
     if (OW.kind !== 'surface' && !OW.isWorld) this.drawMapAmbient(ctx, cam, t, false); else {
     // ocean shimmer + swells
@@ -6084,7 +6091,7 @@ class Game {
       ctx.fillStyle = gold ? `rgb(255,${200 + sh * 50 | 0},${80 + sh * 120 | 0})` : open ? '#f6e6b8' : 'rgba(210,200,190,0.55)'; ctx.beginPath(); ctx.ellipse(sm.x, sm.y, 4, 2.2, 0, 0, 7); ctx.fill(); if (gold && sh > 0.97 && Math.random() < 0.3) this.particles.sparkle(sm.x, sm.y - 2, '#fff7a8', 1); }
     if (T3) { ctx = realCtx; this.tiltWarp(ctx, T3); }
     const objs = [];
-    if (OW.kind === 'surface' && vis(OW.cx, OW.cy - 120, 320)) objs.push({ x:OW.cx, y:OW.cy + 12, d:() => { const bh = Math.abs(mp.x - OW.cx) < 110 && mp.y < OW.cy + 12 && mp.y > OW.cy - 160; if (bh) ctx.globalAlpha = 0.45; this.drawFortress(ctx, OW.cx, OW.cy + 20, t); ctx.globalAlpha = 1; } });
+    if (OW.kind === 'surface' && vis(OW.cx, OW.cy - 120, 320)) objs.push({ x:OW.cx, y:OW.cy + 12, d:() => { const bh = Math.abs(mp.x - OW.cx) < 110 && mp.y < OW.cy + 12 && mp.y > OW.cy - 160; if (bh) ctx.globalAlpha = 0.45; { const k9 = OW.core || 1; ctx.save(); ctx.translate(OW.cx, OW.cy + 20 * k9); ctx.scale(k9, k9); this.drawFortress(ctx, 0, 0, t); ctx.restore(); } ctx.globalAlpha = 1; } });
     for (const n of OW.nodes) if (n.kind === 'glint' && vis(n.x, n.y, 20)) objs.push({ x:n.x, y:n.y, d:() => this.drawGlint(ctx, n, t) });
     for (const P2 of this.save.placed || []) if (P2.m === OW.kind && vis(P2.x, P2.y, 40)) objs.push({ x:P2.x, y:P2.y, d:() => { Art.drawStandee(ctx, P2.k, P2.x, P2.y, 0.75, t); if (Util.dist(mp.x, mp.y, P2.x, P2.y) < 30 && STANDEE_BY[P2.k]) ui.txt(ctx, STANDEE_BY[P2.k].n, P2.x, P2.y - 30, { size:6, align:'center', color:'#ffffff' }); } });
     for (const r of OW.rocks || []) if (!this.rockGone(r) && vis(r.x, r.y, 30)) objs.push({ x:r.x, y:r.y + 4, d:() => this.drawRock(ctx, r, t) });
@@ -7102,6 +7109,7 @@ class Game {
     if (k === 'surface') {
       const cx = OW.cx - cam.x, cy = OW.cy - cam.y, g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 1500);
       g.addColorStop(0, '#140838'); g.addColorStop(0.15, '#1a2486'); g.addColorStop(0.27, '#1a64d0'); g.addColorStop(0.55, '#1e9ce2'); g.addColorStop(1, '#40c8f2'); ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+      if (OW.walls) { ctx.fillStyle = '#62ac54'; ctx.beginPath(); ctx.rect(0, 0, VW, VH); ctx.arc(cx, cy, 1700, 0, Math.PI * 2, true); ctx.fill('evenodd'); }
       ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1.2;
       for (let y = -((cam.y % 26) + 26); y < VH + 26; y += 26) { ctx.beginPath(); for (let x = 0; x <= VW; x += 12) { const wy = y + Math.sin((x + cam.x) * 0.035 + t * 1.3 + (y + cam.y) * 0.13) * 3; if (x) ctx.lineTo(x, wy); else ctx.moveTo(x, wy); } ctx.stroke(); }
       this.drawWaterHQ(ctx, cam, t);
@@ -7160,7 +7168,7 @@ class Game {
     if (Math.random() < 0.2) this.particles.add({ x:x + (Math.random() - 0.5) * 160, y:y - 60 - Math.random() * 160, vy:-20, life:1, color:'rgba(190,120,255,0.8)', size:2 });
   }
   drawMalakorGhost(ctx, t) {
-    if (this.regionOpen(13) && this.save.gameCleared) return; const x = OW.cx, y = OW.cy - 330 + Math.sin(t * 0.8) * 8, a = 0.28 + Math.sin(t * 1.3) * 0.08;
+    if (this.regionOpen(13) && this.save.gameCleared) return; const x = OW.cx, y = OW.cy - 330 * (OW.core || 1) + Math.sin(t * 0.8) * 8, a = 0.28 + Math.sin(t * 1.3) * 0.08;
     ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#2a0f4a'; ctx.beginPath(); ctx.moveTo(x - 120, y + 120); ctx.quadraticCurveTo(x - 110, y - 40, x, y - 90); ctx.quadraticCurveTo(x + 110, y - 40, x + 120, y + 120); ctx.fill();
     ctx.fillStyle = '#4a1a7a'; ctx.beginPath(); ctx.ellipse(x, y - 10, 62, 70, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#0a0418'; ctx.beginPath(); ctx.ellipse(x, y + 4, 44, 50, 0, 0, 7); ctx.fill();
     ctx.globalAlpha = Math.min(1, a * 3); ctx.fillStyle = '#ff3060'; for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + s * 16, y - 4, 8, 4, s * 0.25, 0, 7); ctx.fill(); }
@@ -7228,7 +7236,7 @@ class Game {
       for (const p of OW.pieces) { const S2 = VSTYLE[p.style] || VSTYLE.meadow; if (p.halo) { x.strokeStyle = 'rgba(255,255,255,0.5)'; x.lineWidth = 14; x.stroke(p.path); } x.fillStyle = S2.side2; x.save(); x.translate(0, p.h * 0.7); x.fill(p.path); x.restore(); x.fillStyle = S2.top; x.fill(p.path); }
       OW.ovCv = c; OW.ovKey = key; }
     ctx.imageSmoothingEnabled = true; ctx.drawImage(OW.ovCv, ox, oy, mw, mh); ctx.imageSmoothingEnabled = false;
-    if (OW.kind === 'surface' && !this.regionOpen(13)) { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(ox + OW.cx * sc, oy + OW.cy * sc, 238 * sc, 205 * sc, 0, 0, 7); ctx.stroke(); }
+    if (OW.kind === 'surface' && !this.regionOpen(13)) { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(ox + OW.cx * sc, oy + OW.cy * sc, 238 * sc * (OW.core || 1), 205 * sc * (OW.core || 1), 0, 0, 7); ctx.stroke(); }
     if (OW.kind === 'surface') for (const n of OW.nodes) if (n.kind === 'gate') { const wi = HUB_HOUR_INV[n.hour], op = this.regionOpen(wi); ctx.fillStyle = op ? '#7aff9a' : '#8a8aa0'; ctx.beginPath(); ctx.arc(ox + n.x * sc, oy + n.y * sc, 2.2, 0, 7); ctx.fill(); }
   }
   /* ---------- Wonder Seeds, saves, satchel ---------- */
@@ -7418,7 +7426,7 @@ class Game {
     if (f.t > 0.8 && !f.c1) { f.c1 = 1; this.sound.sfx('gear'); this.banner('THE 13 CORE GEARS RESONATE...', '#ffd34d', 2.4); }
     if (f.t > 1.5 && !f.c2) { f.c2 = 1; this.sound.sfx('break'); }
     if (f.t > 2.6 && !f.boom) { f.boom = 1; this.flash = 0.7; this.sound.sfx('explode'); this.sound.sfx('power');
-      for (let k = 0; k < 36; k++) { const a = k / 36 * Math.PI * 2, x = OW.cx + Math.cos(a) * 238, y = OW.cy + Math.sin(a) * 205; this.particles.add({ x, y, vx:Math.cos(a) * 160, vy:Math.sin(a) * 140 - 60, grav:200, life:1.4, color:k % 2 ? '#ffffff' : '#c8f0ff', size:3 }); } }
+      for (let k = 0; k < 36; k++) { const a = k / 36 * Math.PI * 2, x = OW.cx + Math.cos(a) * 238 * (OW.core || 1), y = OW.cy + Math.sin(a) * 205 * (OW.core || 1); this.particles.add({ x, y, vx:Math.cos(a) * 160, vy:Math.sin(a) * 140 - 60, grav:200, life:1.4, color:k % 2 ? '#ffffff' : '#c8f0ff', size:3 }); } }
     if (f.t > 3.8) { this.barrierFx = null; if (f.br) this.startBridgeAnim(f.br, 'MALAKOR\'S BARRIER IS BROKEN!'); }
   }
   updateFlyby(dt) {
@@ -7689,9 +7697,9 @@ class Game {
     if (p.h > 0) {
       const gs = x.createLinearGradient(0, p.y0, 0, p.y1 + p.h); gs.addColorStop(0, this.shade(S.side, 0.12)); gs.addColorStop(0.5, S.side); gs.addColorStop(1, S.side2);
       x.fillStyle = gs; for (let k = p.h; k > 0; k -= 1.5) { x.save(); x.translate(0, k); x.fill(p.path); x.restore(); }
-      x.lineWidth = 1.1; for (let k = 5; k < p.h; k += 5 + (k % 3)) { x.save(); x.translate(0, k); x.strokeStyle = k % 2 ? 'rgba(0,0,0,0.13)' : 'rgba(255,255,255,0.1)'; x.stroke(p.path); x.restore(); }
-      x.save(); x.translate(0, p.h); x.strokeStyle = 'rgba(0,0,0,0.28)'; x.lineWidth = 2.5; x.stroke(p.path); x.restore();
-      x.save(); x.translate(0, 2.5); x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 4; x.stroke(p.path); x.restore();
+      x.lineWidth = 1.1; if (!p.wall) for (let k = 5; k < p.h; k += 5 + (k % 3)) { x.save(); x.translate(0, k); x.strokeStyle = k % 2 ? 'rgba(0,0,0,0.13)' : 'rgba(255,255,255,0.1)'; x.stroke(p.path); x.restore(); }
+      if (!p.wall) { x.save(); x.translate(0, p.h); x.strokeStyle = 'rgba(0,0,0,0.28)'; x.lineWidth = 2.5; x.stroke(p.path); x.restore();
+      x.save(); x.translate(0, 2.5); x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 4; x.stroke(p.path); x.restore(); }
     }
     const hh = p.h; p.h = 0; try { this.drawPiece(x, p, t); } finally { p.h = hh; }
     x.save(); x.clip(p.path);
@@ -7703,10 +7711,10 @@ class Game {
     const cxp = (p.x0 + p.x1) / 2, cyp = (p.y0 + p.y1) / 2, R = Math.max(p.x1 - p.x0, p.y1 - p.y0) * 0.65;
     const sh = x.createRadialGradient(cxp - R * 0.35, cyp - R * 0.45, 2, cxp, cyp, R * 1.1); sh.addColorStop(0, 'rgba(255,255,255,0.28)'); sh.addColorStop(0.45, 'rgba(255,255,255,0.04)'); sh.addColorStop(1, 'rgba(20,10,40,0.22)');
     x.fillStyle = sh; x.fillRect(p.x0 - 4, p.y0 - 4, p.x1 - p.x0 + 8, p.y1 - p.y0 + 8);
-    x.strokeStyle = this.shade(S.top2, 0.4); x.globalAlpha = 0.55; x.lineWidth = 7; x.stroke(p.path); x.globalAlpha = 1;
-    x.strokeStyle = 'rgba(0,0,0,0.12)'; x.lineWidth = 2; x.save(); x.translate(0, -2.5); x.stroke(p.path); x.restore();
+    if (!p.wall) { x.strokeStyle = this.shade(S.top2, 0.4); x.globalAlpha = 0.55; x.lineWidth = 7; x.stroke(p.path); x.globalAlpha = 1;
+    x.strokeStyle = 'rgba(0,0,0,0.12)'; x.lineWidth = 2; x.save(); x.translate(0, -2.5); x.stroke(p.path); x.restore(); }
     x.restore();
-    x.strokeStyle = 'rgba(28,18,40,0.45)'; x.lineWidth = 2.6; x.stroke(p.path); x.strokeStyle = S.rim; x.lineWidth = 1.4; x.stroke(p.path);
+    if (!p.wall) { x.strokeStyle = 'rgba(28,18,40,0.45)'; x.lineWidth = 2.6; x.stroke(p.path); x.strokeStyle = S.rim; x.lineWidth = 1.4; x.stroke(p.path); }
     p.hq = { cv, x0, y0, w, h, q, used:this.frameNo };
     (OW.hqList || (OW.hqList = [])).push(p);
     if (OW.hqList.length > 70) { OW.hqList.sort((a, b) => (a.hq ? a.hq.used : 0) - (b.hq ? b.hq.used : 0)); while (OW.hqList.length > 55) { const o = OW.hqList.shift(); if (o.hq && o.hq.used < this.frameNo - 30) o.hq = null; else { OW.hqList.push(o); break; } } }
@@ -7720,7 +7728,7 @@ class Game {
   }
   drawShores(ctx, cam, t, vis) {
     if (OW.kind === 'sky') return; const lava = OW.isWorld && BIOMES[OW.world].key === 'foundry';
-    for (const p of OW.pieces) if (p.elev === 0 && vis(p)) {
+    for (const p of OW.pieces) if (p.elev === 0 && !p.wall && vis(p)) {
       ctx.save(); ctx.translate(0, p.h);
       ctx.strokeStyle = lava ? 'rgba(255,200,90,0.28)' : OW.kind === 'sea' ? 'rgba(120,255,220,0.16)' : 'rgba(150,240,255,0.32)'; ctx.lineWidth = 22; ctx.stroke(p.path);
       ctx.strokeStyle = lava ? 'rgba(255,230,150,0.35)' : 'rgba(200,250,255,0.4)'; ctx.lineWidth = 10; ctx.stroke(p.path);
@@ -7732,10 +7740,17 @@ class Game {
   drawVTerrain(ctx, cam, t, all) {
     this.frameNo = (this.frameNo || 0) + 1;
     const VR = this.viewRect, vis = p => all || (VR ? (p.x1 > VR.x0 && p.x0 < VR.x1 && p.y1 + p.h > VR.y0 && p.y0 < VR.y1) : (p.x1 > cam.x - 40 && p.x0 < cam.x + VW + 40 && p.y1 + p.h > cam.y - 40 && p.y0 < cam.y + VH + 40));
-    if (OW.kind === 'surface' && (all || Util.dist(cam.x + VW / 2, cam.y + VH / 2, OW.cx, OW.cy) < 700)) this.drawVortex(ctx, t);
-    if (!all) for (const p of OW.pieces) if (p.elev === 0 && vis(p)) { ctx.save(); ctx.translate(OW.kind === 'sky' ? 14 : 5, p.h + (OW.kind === 'sky' ? 30 : 7)); ctx.fillStyle = OW.kind === 'sky' ? 'rgba(80,60,140,0.18)' : 'rgba(0,20,60,0.3)'; ctx.fill(p.path); ctx.restore(); }
+    if (OW.kind === 'surface' && (all || Util.dist(cam.x + VW / 2, cam.y + VH / 2, OW.cx, OW.cy) < 900)) { const k9 = OW.core || 1; ctx.save(); ctx.translate(OW.cx, OW.cy); ctx.scale(k9, k9); ctx.translate(-OW.cx, -OW.cy); this.drawVortex(ctx, t); ctx.restore(); }
+    if (!all) for (const p of OW.pieces) if (p.elev === 0 && !p.wall && vis(p)) { ctx.save(); ctx.translate(OW.kind === 'sky' ? 14 : 5, p.h + (OW.kind === 'sky' ? 30 : 7)); ctx.fillStyle = OW.kind === 'sky' ? 'rgba(80,60,140,0.18)' : 'rgba(0,20,60,0.3)'; ctx.fill(p.path); ctx.restore(); }
     if (!all) this.drawShores(ctx, cam, t, vis);
     for (const p of OW.pieces) if (vis(p)) { if (all) { const S = VSTYLE[p.style] || VSTYLE.meadow; ctx.fillStyle = S.side; ctx.save(); ctx.translate(0, p.h * 0.6); ctx.fill(p.path); ctx.restore(); ctx.fillStyle = S.top; ctx.fill(p.path); } else this.drawPieceHQ(ctx, p, t); }
+    if (!all) for (const p of OW.walls || []) if (p.fall && vis(p)) this.drawWaterfall(ctx, p.fall.x, p.fall.y, p.h, t);
+  }
+  drawWaterfall(ctx, x, y, h, t) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, 'rgba(200,240,255,0.95)'); g.addColorStop(1, 'rgba(120,200,255,0.85)'); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - 16, y - 2); ctx.lineTo(x + 16, y - 2); ctx.lineTo(x + 20, y + h); ctx.lineTo(x - 20, y + h); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.6; for (let k = 0; k < 7; k++) { const xx = x - 14 + k * 4.6, o = ((t * 70 + k * 23) % 40); ctx.beginPath(); ctx.moveTo(xx, y + o - 10); ctx.lineTo(xx + 0.5, y + o + 6); ctx.stroke(); ctx.beginPath(); ctx.moveTo(xx + 1, y + o + 30); ctx.lineTo(xx + 1.5, y + o + 44); ctx.stroke(); }
+    for (let k = 0; k < 6; k++) { const a = t * 2 + k, r = 5 + (k % 3) * 3; ctx.fillStyle = `rgba(255,255,255,${0.55 + 0.25 * Math.sin(a * 3)})`; ctx.beginPath(); ctx.arc(x - 18 + k * 7, y + h + Math.sin(a) * 2, r, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2; for (let k = 0; k < 2; k++) { const rr = ((t * 14 + k * 12) % 24); ctx.beginPath(); ctx.ellipse(x, y + h + 6, 22 + rr, 6 + rr * 0.3, 0, 0, 7); ctx.stroke(); }
   }
   drawWaterHQ(ctx, cam, t) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -7769,7 +7784,7 @@ class Game {
   /* ---------- 3D tilted map camera ---------- */
   tiltOn() { return !(this.opts && this.opts.flat); }
   tiltSetup(cam) {
-    const sTop = 0.7, VHv = VH * 1.34, HZ = Math.round(VH * 0.16), VWb = VW / sTop, G1 = (1 + sTop) / 2, tcx = cam.x + VW / 2, ty0 = cam.y + VH / 2 - 16 - 0.6 * VHv;
+    const sTop = 0.7, VHv = VH * 1.34, HZ = Math.round(VH * 0.22), VWb = VW / sTop, G1 = (1 + sTop) / 2, tcx = cam.x + VW / 2, ty0 = cam.y + VH / 2 - 16 - 0.6 * VHv;
     const T = { sTop, VHv, HZ, VWb, G1, tcx, ty0, x0:tcx - VWb / 2, y0:ty0 };
     T.s = tt => sTop + (1 - sTop) * tt; T.Y = tt => HZ + (VH - HZ) * (sTop * tt + (1 - sTop) * tt * tt / 2) / G1;
     T.proj = (x, y) => { const tt = (y - ty0) / VHv, s = T.s(tt); return { x:VW / 2 + (x - tcx) * s, y:T.Y(tt), s, t:tt }; };
@@ -7786,9 +7801,20 @@ class Game {
     const sx = VW * 0.74 - (cam.x * 0.02) % 40, sg = ctx.createRadialGradient(sx, T.HZ * 0.55, 1, sx, T.HZ * 0.55, 40); sg.addColorStop(0, 'rgba(255,255,230,0.95)'); sg.addColorStop(0.25, 'rgba(255,250,210,0.5)'); sg.addColorStop(1, 'rgba(255,250,210,0)'); ctx.fillStyle = sg; ctx.fillRect(sx - 40, 0, 80, T.HZ + 6);
     for (let k = 0; k < 7; k++) { const w = 46 + Util.hash(k * 3.7) * 70, x = ((Util.hash(k * 1.9) * 900 - cam.x * 0.08 + t * 2) % (VW + 160) + VW + 160) % (VW + 160) - 80, y = 18 + Util.hash(k * 5.1) * (T.HZ - 26);
       ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.ellipse(x, y, w * 0.5, 5, 0, 0, 7); ctx.ellipse(x - w * 0.15, y - 3, w * 0.22, 5, 0, 0, 7); ctx.ellipse(x + w * 0.12, y - 4, w * 0.2, 5, 0, 0, 7); ctx.fill(); }
+    this.drawMountains(ctx, T, cam, t, C3);
     for (let k = 0; k < 9; k++) { const w = 50 + Util.hash(k * 7.3) * 80, h = 6 + Util.hash(k * 2.2) * 10, x = ((Util.hash(k * 4.4) * 1400 - cam.x * 0.16) % (VW + 200) + VW + 200) % (VW + 200) - 100, y = T.HZ + 2;
       ctx.fillStyle = C3[2]; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.moveTo(x - w / 2, y); ctx.quadraticCurveTo(x - w * 0.3, y - h, x, y - h * 1.1); ctx.quadraticCurveTo(x + w * 0.3, y - h, x + w / 2, y); ctx.fill();
       ctx.globalAlpha = 0.5; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(x - w * 0.05, y - h * 0.9, w * 0.18, 1.4, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
+  }
+  drawMountains(ctx, T, cam, t, C3) {
+    const mix = (a, b, f) => { const A = parseInt(a.slice(1), 16), B = parseInt(b.slice(1), 16), c = [16, 8, 0].map(sh => Math.round(((A >> sh) & 255) * (1 - f) + ((B >> sh) & 255) * f)); return `rgb(${c[0]},${c[1]},${c[2]})`; };
+    const base = T.HZ + 2, layers = [[0.05, 0.62, 30, 150, 0.72], [0.1, 0.42, 22, 110, 0.5], [0.18, 0.22, 14, 80, 0.25]];
+    layers.forEach(([par, haze, hgt, wid, snow], L) => { const off = -cam.x * par, col = mix(C3[2].startsWith('#') ? C3[2] : '#6a9a6a', C3[1], haze), n = Math.ceil(VW / wid) + 3;
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-10, base); for (let k = -1; k < n; k++) { const seed = Math.floor(k - off / wid), x = k * wid + ((off % wid) + wid) % wid - wid, hh = hgt * (0.6 + Util.hash(seed * 3.7 + L) * 0.7), px = x + wid * (0.3 + Util.hash(seed * 1.9 + L) * 0.4);
+        ctx.lineTo(x, base - hh * 0.2); ctx.quadraticCurveTo(px - wid * 0.18, base - hh * 0.9, px, base - hh); ctx.quadraticCurveTo(px + wid * 0.18, base - hh * 0.9, x + wid, base - hh * 0.2); }
+      ctx.lineTo(VW + 10, base); ctx.closePath(); ctx.fill();
+      if (snow > 0.3) for (let k = -1; k < n; k++) { const seed = Math.floor(k - off / wid), x = k * wid + ((off % wid) + wid) % wid - wid, hh = hgt * (0.6 + Util.hash(seed * 3.7 + L) * 0.7), px = x + wid * (0.3 + Util.hash(seed * 1.9 + L) * 0.4); if (hh < hgt * 0.85) continue;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.moveTo(px - wid * 0.07, base - hh * 0.8); ctx.quadraticCurveTo(px, base - hh * 1.02, px + wid * 0.07, base - hh * 0.8); ctx.quadraticCurveTo(px, base - hh * 0.86, px - wid * 0.07, base - hh * 0.8); ctx.fill(); } });
   }
   drawGroundBG(g, T, t) {
     const w = T.VWb, h = T.VHv, k = OW.kind; let gr;
@@ -7797,6 +7823,7 @@ class Game {
     else if (k === 'sky') { gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#8ab4f0'); gr.addColorStop(1, '#ffe0f0'); }
     else { gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0e4a7a'); gr.addColorStop(1, '#06203e'); }
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    if (k === 'surface' && OW.walls) { const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#5aa850'); lg.addColorStop(1, '#78c060'); g.fillStyle = lg; g.beginPath(); g.rect(0, 0, w, h); g.arc(OW.cx - T.x0, OW.cy - T.y0, 1700, 0, Math.PI * 2, true); g.fill('evenodd'); }
     const water = k === 'surface' || (OW.isWorld && WATER_WORLDS.includes(BIOMES[OW.world].key));
     g.strokeStyle = k === 'sky' ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'; g.lineWidth = 1.2;
     for (let y = -((T.y0 % 26) + 26); y < h + 26; y += 26) { g.beginPath(); for (let x = 0; x <= w; x += 12) { const wy = y + Math.sin((x + T.x0) * 0.035 + t * 1.3 + (y + T.y0) * 0.13) * 3; if (x) g.lineTo(x, wy); else g.moveTo(x, wy); } g.stroke(); }
